@@ -26,6 +26,7 @@ function preload() {
   assets.tutorial = imgLoad('tutorial.png');
   
   assets.comic = [];
+  // WICHTIG: Prüfe auf GitHub, ob die Dateien wirklich .png (kleingeschrieben) heißen!
   for(let i=0; i<6; i++) assets.comic[i] = imgLoad(`wp${i+1}.png`);
 
   assets.p_walk = imgLoad('walkcycle_p.png'); assets.p_walkm = imgLoad('walkcycle_pm.png');
@@ -213,34 +214,34 @@ function drawInfiniteBackground() {
 function playGame() { if (assets.bg) drawInfiniteBackground(); if (freezeTimer > 0) freezeTimer--; handlePlayer(); handleEnemies(); let drawList = [{y: player.y, type: 'player'}]; for (let e of enemies) drawList.push({y: e.y, type: 'enemy', data: e}); drawList.sort((a, b) => a.y - b.y); for (let obj of drawList) { if (obj.type === 'player') drawPlayer(); else drawEnemy(obj.data); } if (health <= 0) { if (score > highscore) { isNewHS = true; highscore = score; localStorage.setItem("whiteParryHighscore", highscore); assets.s_win?.play(); } else { isNewHS = false; assets.s_lose?.play(); } gameState = "GAMEOVER"; } }
 
 function drawRetroFilter() { push(); stroke(0, 25); strokeWeight(1); for (let i = 0; i < height; i += 4) { line(0, i, width, i); } noFill(); for (let i = 0; i < 6; i++) { stroke(0, map(i, 0, 6, 45, 0)); strokeWeight(i * 15); rect(0, 0, width, height); } pop(); }
+
 function drawUI() { 
   let hpScale = min(0.95, (width / 1200) * 0.95); 
   let hpW = 75 * hpScale; 
   let hpH = 187 * hpScale; 
   let margin = 40; 
   let topOffset = 130 * hpScale; 
+  let recordSize = min(18, width * 0.04);
 
-  // HP Anzeige (Rechts)
   if (assets.hp[constrain(4-health, 0, 4)]) {
     image(assets.hp[constrain(4-health, 0, 4)], width - hpW/2 - margin, topOffset, hpW, hpH); 
   }
 
-  // Score & Record (Rechts neben HP)
   fill('#D00000'); 
   textAlign(RIGHT); 
   textSize(min(32, width * 0.08)); 
   text(score, width - hpW - margin - 20, topOffset - 60); 
   
   fill('#565a75'); 
-  textSize(min(18, width * 0.04)); 
+  textSize(recordSize); 
   text("RECORD: " + highscore, width - hpW - margin - 20, topOffset - 20); 
 
-  // --- NEU: Steuerung oben links ---
   fill('#565A75'); 
-  textAlign(LEFT, TOP); // Ausrichtung oben links
-  textSize(16); 
-  text("MENU [ESC]\nRESTART [R]", 30, 30); // Positioniert mit kleinem Padding zum Rand
+  textAlign(LEFT, TOP); 
+  textSize(recordSize); 
+  text("MENU [ESC]\nRESTART [R]", 30, 30); 
 }
+
 function drawMenu() { 
   background(15, 15, 27); if (assets.menuBg) { push(); tint(255); drawCoverImage(assets.menuBg); pop(); } 
   if (musicOn && assets.bgm && !assets.bgm.isPlaying()) toggleMusic(true); 
@@ -256,20 +257,63 @@ function drawMenu() {
 }
 
 function drawGameOver() { 
-  background('#fafbf6'); let img = isNewHS ? assets.highscoreImg : assets.loseImg; drawResponsiveImage(img, width * 0.95, height * 0.75, -50); 
-  fill('#0f0f1b'); textAlign(LEFT, CENTER); let rowY = height - 50;
-  textSize(22); text("SCORE: " + score, 40, rowY); drawGenericButton("RESTART [R]", width - 260, rowY, RIGHT, () => { resetGame(); gameState = "PLAY"; }); 
+  background('#fafbf6'); 
+  let img = isNewHS ? assets.highscoreImg : assets.loseImg; 
+  drawResponsiveImage(img, width * 0.95, height * 0.75, -50); 
+  
+  let rowY = height - 50;
+  let recordSize = min(18, width * 0.04);
+  
+  if (isNewHS) {
+    fill('#0f0f1b'); 
+    textAlign(LEFT, CENTER);
+    textSize(24); 
+    text("NEW KILL RECORD: " + score, 40, rowY);
+  } else {
+    fill('#0f0f1b'); 
+    textAlign(LEFT, CENTER);
+    textSize(20); 
+    text("SCORE: " + score, 40, rowY);
+    
+    fill('#565A75');
+    let offset = textWidth("SCORE: " + score) + 40;
+    // Responsive: Wenn Fenster zu klein, schiebe den Rekord etwas nach rechts
+    text("RECORD: " + highscore, max(offset, 250), rowY);
+  }
+  
+  drawGenericButton("RESTART [R]", width - 260, rowY, RIGHT, () => { resetGame(); gameState = "PLAY"; }); 
   drawGenericButton("MENU [ESC]", width - 40, rowY, RIGHT, () => { gameState = "MENU"; }); 
 }
 
 function getPlayerImg() { if (player.state === 'parry') return player.dir === 'r' ? assets.p_parry : assets.p_parrym; if (player.state === 'parryattack') return player.dir === 'r' ? assets.p_parryAtk : assets.p_parryAtkm; if (player.state === 'hit') return player.dir === 'r' ? assets.p_hit : assets.p_hitm; return player.dir === 'r' ? assets.p_walk : assets.p_walkm; }
-function drawComic() { background('#fafbf6'); if (assets.comic[currentComicPage]) drawResponsiveImage(assets.comic[currentComicPage], width * 0.95, height * 0.85, -40); let btnY = height - 50; drawGenericButton("< PREV", 60, btnY, LEFT, () => { if(currentComicPage > 0) currentComicPage--; }); drawGenericButton("NEXT >", 220, btnY, LEFT, () => { if(currentComicPage < 5) currentComicPage++; }); drawGenericButton("MENU [ESC]", width - 60, btnY, RIGHT, () => gameState = "MENU"); }
+
+function drawComic() { 
+  background('#fafbf6'); 
+  if (assets.comic[currentComicPage]) {
+    drawResponsiveImage(assets.comic[currentComicPage], width * 0.95, height * 0.85, -40);
+  } else {
+    fill(0); textAlign(CENTER); text("Loading Comic...", width/2, height/2);
+  }
+  let btnY = height - 50; 
+  drawGenericButton("< PREV", 60, btnY, LEFT, () => { if(currentComicPage > 0) currentComicPage--; }); 
+  drawGenericButton("NEXT >", 220, btnY, LEFT, () => { if(currentComicPage < 5) currentComicPage++; }); 
+  drawGenericButton("MENU [ESC]", width - 60, btnY, RIGHT, () => gameState = "MENU"); 
+}
 
 function drawCredits() { 
-  background('#fafbf6'); fill('#0f0f1b'); textAlign(CENTER, CENTER); textSize(26); text("CREDITS", width/2, 60); 
-  textSize(14); 
-  let creditText = "A game by Tanmoy Roy\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe -- https://freesound.org/s/550337/ -- License: Creative Commons 0"; 
-  text(creditText, width/2, height/2); 
+  background('#fafbf6'); 
+  fill('#0f0f1b'); 
+  textAlign(CENTER, CENTER); 
+  textSize(26); 
+  text("CREDITS", width/2, 60); 
+  
+  textSize(min(16, width * 0.035)); 
+  let creditText = "A game by Tanmoy Roy\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe -- https://freesound.org/s/550337/ -- License: CC 0"; 
+  
+  // Responsiver Textumbruch für die Credits
+  textLeading(25);
+  text(creditText, width * 0.1, height * 0.15, width * 0.8, height * 0.7); 
+  
   drawGenericButton("MENU [ESC]", width/2, height - 60, CENTER, () => gameState = "MENU"); 
 }
 
