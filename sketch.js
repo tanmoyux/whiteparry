@@ -76,8 +76,10 @@ function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 function resetGame() {
   player = { x: 0, y: 0, frame: 0, dir: 'r', state: 'walk', stateTimer: 0, animCounter: 0, isMoving: false, invul: 0 };
   enemies = []; score = 0; health = 4; startTime = millis();
-  freezeTimer = 0; screenShake = 0; gameZoom = 1; redFlash = 0; multikillAnim = 0;
-  parryCooldown = 0; targetZoom = 1; runTimer = 0;
+  freezeTimer = 0; screenShake = 0; 
+  gameZoom = isTouch ? 0.6 : 1.0; 
+  redFlash = 0; multikillAnim = 0;
+  parryCooldown = 0; targetZoom = isTouch ? 0.6 : 1.0; runTimer = 0;
 }
 
 function draw() { 
@@ -120,7 +122,16 @@ function draw() {
   drawRetroFilter();
 }
 
-function updateDynamicZoom() { if (freezeTimer > 0) { targetZoom = 1.3; } else { if (player.isMoving) { runTimer++; } else { runTimer = 0; } if (runTimer > 16) targetZoom = 0.72; else targetZoom = 1.04; } gameZoom = lerp(gameZoom, targetZoom, 0.04); }
+function updateDynamicZoom() { 
+  let baseZoom = isTouch ? 0.6 : 1.0;
+  if (freezeTimer > 0) { targetZoom = baseZoom * 1.3; } 
+  else { 
+    if (player.isMoving) { runTimer++; } else { runTimer = 0; } 
+    if (runTimer > 16) targetZoom = baseZoom * 0.72; 
+    else targetZoom = baseZoom * 1.04; 
+  } 
+  gameZoom = lerp(gameZoom, targetZoom, 0.04); 
+}
 
 function handleEnemies() {
   let spawnRate = max(25, 80 - floor(score/3.2));
@@ -227,6 +238,7 @@ function drawUI() {
   let hpW = 75 * hpScale; let hpH = 187 * hpScale; 
   let margin = 40; let topOffset = 130 * hpScale; 
   let recordSize = min(18, width * 0.04);
+  
   if (assets.hp[constrain(4-health, 0, 4)]) image(assets.hp[constrain(4-health, 0, 4)], width - hpW/2 - margin, topOffset, hpW, hpH); 
   fill('#D00000'); textAlign(RIGHT); textSize(min(32, width * 0.08)); text(score, width - hpW - margin - 20, topOffset - 60); 
   fill('#565a75'); textSize(recordSize); text("RECORD: " + highscore, width - hpW - margin - 20, topOffset - 20); 
@@ -235,55 +247,89 @@ function drawUI() {
     fill('#565A75'); textAlign(LEFT, TOP); textSize(recordSize); 
     text("MENU [ESC]\nRESTART [R]", 30, 30); 
   } else {
-    drawGenericButton("MENU", 80, 40, CENTER, () => gameState = "MENU", '#565a75');
-    drawGenericButton("RESTART", 250, 40, CENTER, () => resetGame(), '#565a75');
+    drawGenericButton("MENU", 60, 30, CENTER, () => gameState = "MENU", '#565a75');
+    drawGenericButton("RESTART", 180, 30, CENTER, () => resetGame(), '#565a75');
   }
 }
-
-function drawTouchPad() { push(); noFill(); stroke(255, 50); strokeWeight(2); ellipse(touchAnchor.x, touchAnchor.y, 60, 60); fill(255, 80); noStroke(); ellipse(touchMove.x, touchMove.y, 30, 30); pop(); }
 
 function drawMenu() { 
   background(15, 15, 27); if (assets.menuBg) { push(); tint(255); drawCoverImage(assets.menuBg); pop(); } 
   if (musicOn && assets.bgm && !assets.bgm.isPlaying()) toggleMusic(true); 
-  let panelW = min(400, width * 0.85); noStroke(); fill(15, 15, 27); rect(0, 0, panelW, height); 
+  let panelW = isTouch ? min(280, width * 0.4) : min(400, width * 0.85); 
+  noStroke(); fill(15, 15, 27); rect(0, 0, panelW, height); 
+  
   if (assets.logo) {
-    let logoW = min(panelW * 0.7, 240);
+    let logoW = isTouch ? panelW * 0.6 : min(panelW * 0.7, 240);
     let logoH = logoW * 0.5;
-    image(assets.logo, panelW/2, min(100, height * 0.15), logoW, logoH); 
+    image(assets.logo, panelW/2, height * 0.12, logoW, logoH); 
   }
-  let gap = 55; let startY = max(height * 0.3, (height / 2) - 100); let leftX = 40;
-  drawGenericButton(isTouch ? "START GAME" : "[1] START GAME", leftX, startY, LEFT, () => { resetGame(); gameState = "PLAY"; }); 
-  drawGenericButton(isTouch ? "READ COMIC" : "[2] READ COMIC", leftX, startY + gap, LEFT, () => { gameState = "COMIC"; currentComicPage = 0; }); 
-  drawGenericButton(isTouch ? "TUTORIAL" : "[3] TUTORIAL", leftX, startY + gap*2, LEFT, () => gameState = "TUTORIAL"); 
-  drawGenericButton(isTouch ? "CREDITS" : "[4] CREDITS", leftX, startY + gap*3, LEFT, () => gameState = "CREDITS"); 
-  drawGenericButton(isTouch ? (musicOn ? "MUSIC ON" : "MUSIC OFF") : (musicOn ? "[M] MUSIC ON" : "[M] MUSIC OFF"), leftX, startY + gap*4, LEFT, () => { musicOn = !musicOn; toggleMusic(musicOn); }); 
-  drawVolumeControl(leftX, startY + gap * 5.2, 120);
+  
+  let gap = isTouch ? 40 : 55; 
+  let startY = height * 0.28; 
+  let leftX = isTouch ? 20 : 40;
+  let btnSize = isTouch ? 14 : 20;
+
+  drawGenericButton(isTouch ? "START" : "[1] START GAME", leftX, startY, LEFT, () => { resetGame(); gameState = "PLAY"; tryFullscreen(); }, '#c6b7be', btnSize); 
+  drawGenericButton(isTouch ? "COMIC" : "[2] READ COMIC", leftX, startY + gap, LEFT, () => { gameState = "COMIC"; currentComicPage = 0; }, '#c6b7be', btnSize); 
+  drawGenericButton(isTouch ? "TUTORIAL" : "[3] TUTORIAL", leftX, startY + gap*2, LEFT, () => gameState = "TUTORIAL", '#c6b7be', btnSize); 
+  drawGenericButton(isTouch ? "CREDITS" : "[4] CREDITS", leftX, startY + gap*3, LEFT, () => gameState = "CREDITS", '#c6b7be', btnSize); 
+  drawGenericButton(isTouch ? (musicOn ? "MUSIC ON" : "MUSIC OFF") : (musicOn ? "[M] MUSIC ON" : "[M] MUSIC OFF"), leftX, startY + gap*4, LEFT, () => { musicOn = !musicOn; toggleMusic(musicOn); }, '#c6b7be', btnSize); 
+  drawVolumeControl(leftX, startY + gap * 5.2, isTouch ? 80 : 120);
 }
 
 function drawGameOver() { 
-  background('#fafbf6'); drawResponsiveImage(isNewHS ? assets.highscoreImg : assets.loseImg, width * 0.95, height * 0.75, -50); 
-  let rowY = height - 50;
-  fill('#0f0f1b'); textAlign(LEFT, CENTER); textSize(20); text("SCORE: " + score, 40, rowY);
-  fill('#565A75'); text("RECORD: " + highscore, max(textWidth("SCORE: " + score) + 80, 250), rowY);
-  
+  background('#fafbf6'); 
   if (isTouch) {
-    drawGenericButton("RESTART", width - 260, rowY, RIGHT, () => { resetGame(); gameState = "PLAY"; }, '#c6b7be'); 
-    drawGenericButton("MENU", width - 40, rowY, RIGHT, () => gameState = "MENU", '#c6b7be'); 
+    let sidebarW = 180;
+    drawSidebar(sidebarW);
+    let contentW = width - sidebarW;
+    drawResponsiveImage(isNewHS ? assets.highscoreImg : assets.loseImg, contentW * 0.95, height, 0, sidebarW + contentW/2);
+    fill('#0f0f1b'); textAlign(LEFT, CENTER); textSize(16);
+    text("SCORE: " + score, 20, height * 0.6);
+    text("REC: " + highscore, 20, height * 0.65);
+    drawGenericButton("RESTART", 20, height - 100, LEFT, () => { resetGame(); gameState = "PLAY"; });
+    drawGenericButton("MENU", 20, height - 50, LEFT, () => gameState = "MENU");
   } else {
+    drawResponsiveImage(isNewHS ? assets.highscoreImg : assets.loseImg, width * 0.95, height * 0.75, -50); 
+    let rowY = height - 50;
+    fill('#0f0f1b'); textAlign(LEFT, CENTER); textSize(20); text("SCORE: " + score, 40, rowY);
+    fill('#565A75'); text("RECORD: " + highscore, max(textWidth("SCORE: " + score) + 80, 250), rowY);
     textAlign(RIGHT, CENTER); fill('#c6b7be');
     text("RESTART [R]", width - 260, rowY);
     text("MENU [ESC]", width - 40, rowY);
   }
 }
 
-function getPlayerImg() { if (player.state === 'parry') return player.dir === 'r' ? assets.p_parry : assets.p_parrym; if (player.state === 'parryattack') return player.dir === 'r' ? assets.p_parryAtk : assets.p_parryAtkm; if (player.state === 'hit') return player.dir === 'r' ? assets.p_hit : assets.p_hitm; return player.dir === 'r' ? assets.p_walk : assets.p_walkm; }
-
 function drawComic() { 
-  background('#fafbf6'); if (assets.comic[currentComicPage]) drawResponsiveImage(assets.comic[currentComicPage], width * 0.95, height * 0.85, -40);
-  let btnY = height - 50; 
-  drawGenericButton("< PREV", 60, btnY, LEFT, () => { if(currentComicPage > 0) currentComicPage--; }); 
-  drawGenericButton("NEXT >", 220, btnY, LEFT, () => { if(currentComicPage < 5) currentComicPage++; }); 
-  drawGenericButton(isTouch ? "MENU" : "MENU [ESC]", width - 60, btnY, RIGHT, () => gameState = "MENU"); 
+  background('#fafbf6'); 
+  if (isTouch) {
+    let sidebarW = 120;
+    drawSidebar(sidebarW);
+    let contentW = width - sidebarW;
+    if (assets.comic[currentComicPage]) drawResponsiveImage(assets.comic[currentComicPage], contentW, height, 0, sidebarW + contentW/2);
+    drawGenericButton("NEXT", 20, 60, LEFT, () => { if(currentComicPage < 5) currentComicPage++; });
+    drawGenericButton("PREV", 20, 110, LEFT, () => { if(currentComicPage > 0) currentComicPage--; });
+    drawGenericButton("MENU", 20, height - 50, LEFT, () => gameState = "MENU");
+  } else {
+    if (assets.comic[currentComicPage]) drawResponsiveImage(assets.comic[currentComicPage], width * 0.95, height * 0.85, -40);
+    let btnY = height - 50; 
+    drawGenericButton("< PREV", 60, btnY, LEFT, () => { if(currentComicPage > 0) currentComicPage--; }); 
+    drawGenericButton("NEXT >", 220, btnY, LEFT, () => { if(currentComicPage < 5) currentComicPage++; }); 
+    drawGenericButton("MENU [ESC]", width - 60, btnY, RIGHT, () => gameState = "MENU"); 
+  }
+}
+
+function drawTutorial() { 
+  background('#fafbf6'); 
+  if (isTouch) {
+    let sidebarW = 120; drawSidebar(sidebarW);
+    let contentW = width - sidebarW;
+    if (assets.tutorial) drawResponsiveImage(assets.tutorial, contentW, height, 0, sidebarW + contentW/2);
+    drawGenericButton("MENU", 20, height - 50, LEFT, () => gameState = "MENU");
+  } else {
+    if (assets.tutorial) drawResponsiveImage(assets.tutorial, width * 0.9, height * 0.8, -30); 
+    drawGenericButton("MENU [ESC]", width/2, height - 50, CENTER, () => gameState = "MENU");
+  }
 }
 
 function drawCredits() { 
@@ -294,63 +340,108 @@ function drawCredits() {
   drawGenericButton(isTouch ? "MENU" : "MENU [ESC]", width/2, height - 60, CENTER, () => gameState = "MENU"); 
 }
 
-function drawCoverImage(img) { if (!img) return; let r = img.width/img.height, sr = width/height, w, h; if (r > sr) { h = height; w = height * r; } else { w = width; h = width / r; } image(img, width/2, height/2, w, h); }
-function drawResponsiveImage(img, tw, th, yO = 0) { if (!img || img.width <= 1) return; let r = img.width/img.height, tr = tw/th, w, h; if (r > tr) { w = tw; h = tw/r; } else { h = th; w = th*r; } image(img, width/2, height/2 + yO, w, h); }
+function drawSidebar(w) { noStroke(); fill('#ebece6'); rect(0,0,w,height); stroke(0,20); line(w,0,w,height); }
 
-function checkBtn(x, y, txt, align) {
-  let tw = textWidth(txt);
-  if (align === CENTER) return mouseX > x - tw/2 && mouseX < x + tw/2 && mouseY > y - 20 && mouseY < y + 20;
-  if (align === LEFT) return mouseX > x && mouseX < x + tw && mouseY > y - 20 && mouseY < y + 20;
-  if (align === RIGHT) return mouseX > x - tw && mouseX < x && mouseY > y - 20 && mouseY < y + 20;
-  return false;
+function drawCoverImage(img) { if (!img) return; let r = img.width/img.height, sr = width/height, w, h; if (r > sr) { h = height; w = height * r; } else { w = width; h = width / r; } image(img, width/2, height/2, w, h); }
+
+function drawResponsiveImage(img, tw, th, yO = 0, xO = width/2) { 
+  if (!img || img.width <= 1) return; 
+  let r = img.width/img.height, tr = tw/th, w, h; 
+  if (r > tr) { w = tw; h = tw/r; } else { h = th; w = th*r; } 
+  image(img, xO, height/2 + yO, w, h); 
 }
 
-function drawGenericButton(txt, x, y, align, callback, col = '#c6b7be') { 
-  textAlign(align, CENTER); textSize(20); 
-  let isHover = checkBtn(x, y, txt, align);
+function drawTouchPad() { push(); noFill(); stroke(255, 50); strokeWeight(2); ellipse(touchAnchor.x, touchAnchor.y, 60, 60); fill(255, 80); noStroke(); ellipse(touchMove.x, touchMove.y, 30, 30); pop(); }
+
+function drawGenericButton(txt, x, y, align, callback, col = '#c6b7be', size = 20) { 
+  textAlign(align, CENTER); textSize(size); 
+  let isHover = checkBtn(x, y, txt, align, size);
   fill(isHover ? '#D00000' : col); 
   text(txt, x, y); 
 }
 
-function drawTutorial() { background('#fafbf6'); if (assets.tutorial) drawResponsiveImage(assets.tutorial, width * 0.9, height * 0.8, -30); drawGenericButton(isTouch ? "MENU" : "MENU [ESC]", width/2, height - 50, CENTER, () => gameState = "MENU"); }
+function checkBtn(x, y, txt, align, size = 20) {
+  textSize(size);
+  let tw = textWidth(txt);
+  if (align === CENTER) return mouseX > x - tw/2 && mouseX < x + tw/2 && mouseY > y - 25 && mouseY < y + 25;
+  if (align === LEFT) return mouseX > x && mouseX < x + tw && mouseY > y - 25 && mouseY < y + 25;
+  if (align === RIGHT) return mouseX > x - tw && mouseX < x && mouseY > y - 25 && mouseY < y + 25;
+  return false;
+}
+
 function toggleMusic(p) { if (assets.bgm) { if (p && !assets.bgm.isPlaying()) assets.bgm.loop(); else if (!p) assets.bgm.stop(); } }
 function changeVolume(amt) { globalVolume = constrain(globalVolume + amt, 0, 1); outputVolume(globalVolume); }
 function drawVolumeControl(x, y, w) { textAlign(LEFT, CENTER); textSize(16); fill('#c6b7be'); text("VOL", x, y); drawGenericButton("-", x + 60, y, CENTER, () => changeVolume(-0.1)); let sliderX = x + 80; let knobX = map(globalVolume, 0, 1, sliderX, sliderX + w); if (mouseIsPressed && dist(mouseX, mouseY, knobX, y) < 25) isDraggingVolume = true; if (!mouseIsPressed) isDraggingVolume = false; if (isDraggingVolume) { globalVolume = constrain(map(mouseX, sliderX, sliderX + w, 0, 1), 0, 1); outputVolume(globalVolume); } stroke('#565a75'); strokeWeight(4); line(sliderX, y, sliderX + w, y); noStroke(); fill('#D00000'); ellipse(knobX, y, 18, 18); drawGenericButton("+", x + 100 + w, y, CENTER, () => changeVolume(0.1)); }
 
+function tryFullscreen() {
+  let fs = document.documentElement;
+  if (fs.requestFullscreen) fs.requestFullscreen();
+  else if (fs.webkitRequestFullscreen) fs.webkitRequestFullscreen();
+}
+
 function handleGlobalClick() {
-  if (!isTouch) return false; 
-  if (gameState === "PLAY") {
-    if (checkBtn(80, 40, "MENU", CENTER)) { gameState = "MENU"; return true; }
-    if (checkBtn(250, 40, "RESTART", CENTER)) { resetGame(); return true; }
-  }
-  if (gameState === "MENU") {
-    let gap = 55; let startY = max(height * 0.3, (height / 2) - 100); let leftX = 40;
-    if (checkBtn(leftX, startY, "START GAME", LEFT)) { resetGame(); gameState = "PLAY"; return true; }
-    if (checkBtn(leftX, startY + gap, "READ COMIC", LEFT)) { gameState = "COMIC"; currentComicPage = 0; return true; }
-    if (checkBtn(leftX, startY + gap*2, "TUTORIAL", LEFT)) { gameState = "TUTORIAL"; return true; }
-    if (checkBtn(leftX, startY + gap*3, "CREDITS", LEFT)) { gameState = "CREDITS"; return true; }
-    if (checkBtn(leftX, startY + gap*4, musicOn ? "MUSIC ON" : "MUSIC OFF", LEFT)) { musicOn = !musicOn; toggleMusic(musicOn); return true; }
-  }
-  if (gameState === "COMIC") {
-    let btnY = height - 50;
-    if (checkBtn(60, btnY, "< PREV", LEFT)) { if(currentComicPage > 0) currentComicPage--; return true; }
-    if (checkBtn(220, btnY, "NEXT >", LEFT)) { if(currentComicPage < 5) currentComicPage++; return true; }
-    if (checkBtn(width - 60, btnY, "MENU", RIGHT)) { gameState = "MENU"; return true; }
-  }
-  if (gameState === "GAMEOVER") {
-    let rowY = height - 50;
-    if (checkBtn(width - 260, rowY, "RESTART", RIGHT)) { resetGame(); gameState = "PLAY"; return true; }
-    if (checkBtn(width - 40, rowY, "MENU", RIGHT)) { gameState = "MENU"; return true; }
-  }
-  if (gameState === "TUTORIAL" || gameState === "CREDITS") {
-    if (checkBtn(width/2, height - (gameState === "TUTORIAL" ? 50 : 60), "MENU", CENTER)) { gameState = "MENU"; return true; }
+  // Mobile Abfragen (isTouch)
+  if (isTouch) {
+    if (gameState === "PLAY") {
+      if (checkBtn(60, 30, "MENU", CENTER)) { gameState = "MENU"; return true; }
+      if (checkBtn(180, 30, "RESTART", CENTER)) { resetGame(); return true; }
+    }
+    if (gameState === "MENU") {
+      let gap = 40; let startY = height * 0.28; let leftX = 20;
+      if (checkBtn(leftX, startY, "START", LEFT, 14)) { resetGame(); gameState = "PLAY"; tryFullscreen(); return true; }
+      if (checkBtn(leftX, startY + gap, "COMIC", LEFT, 14)) { gameState = "COMIC"; currentComicPage = 0; return true; }
+      if (checkBtn(leftX, startY + gap*2, "TUTORIAL", LEFT, 14)) { gameState = "TUTORIAL"; return true; }
+      if (checkBtn(leftX, startY + gap*3, "CREDITS", LEFT, 14)) { gameState = "CREDITS"; return true; }
+      if (checkBtn(leftX, startY + gap*4, musicOn ? "MUSIC ON" : "MUSIC OFF", LEFT, 14)) { musicOn = !musicOn; toggleMusic(musicOn); return true; }
+    }
+    if (gameState === "COMIC") {
+      if (checkBtn(20, 60, "NEXT", LEFT)) { if(currentComicPage < 5) currentComicPage++; return true; }
+      if (checkBtn(20, 110, "PREV", LEFT)) { if(currentComicPage > 0) currentComicPage--; return true; }
+      if (checkBtn(20, height - 50, "MENU", LEFT)) { gameState = "MENU"; return true; }
+    }
+    if (gameState === "GAMEOVER") {
+      if (checkBtn(20, height - 100, "RESTART", LEFT)) { resetGame(); gameState = "PLAY"; return true; }
+      if (checkBtn(20, height - 50, "MENU", LEFT)) { gameState = "MENU"; return true; }
+    }
+    if (gameState === "TUTORIAL" || gameState === "CREDITS") {
+      if (checkBtn(20, height - 50, "MENU", LEFT)) { gameState = "MENU"; return true; }
+    }
+  } 
+  
+  // Desktop Abfragen (Nicht isTouch)
+  else {
+    if (gameState === "MENU") {
+      let gap = 55; let startY = height * 0.28; let leftX = 40;
+      if (checkBtn(leftX, startY, "[1] START GAME", LEFT)) { resetGame(); gameState = "PLAY"; return true; }
+      if (checkBtn(leftX, startY + gap, "[2] READ COMIC", LEFT)) { gameState = "COMIC"; currentComicPage = 0; return true; }
+      if (checkBtn(leftX, startY + gap*2, "[3] TUTORIAL", LEFT)) { gameState = "TUTORIAL"; return true; }
+      if (checkBtn(leftX, startY + gap*3, "[4] CREDITS", LEFT)) { gameState = "CREDITS"; return true; }
+      if (checkBtn(leftX, startY + gap*4, musicOn ? "[M] MUSIC ON" : "[M] MUSIC OFF", LEFT)) { musicOn = !musicOn; toggleMusic(musicOn); return true; }
+    }
+    if (gameState === "COMIC") {
+      let btnY = height - 50;
+      if (checkBtn(60, btnY, "< PREV", LEFT)) { if(currentComicPage > 0) currentComicPage--; return true; }
+      if (checkBtn(220, btnY, "NEXT >", LEFT)) { if(currentComicPage < 5) currentComicPage++; return true; }
+      if (checkBtn(width - 60, btnY, "MENU [ESC]", RIGHT)) { gameState = "MENU"; return true; }
+    }
+    if (gameState === "TUTORIAL") {
+      if (checkBtn(width/2, height - 50, "MENU [ESC]", CENTER)) { gameState = "MENU"; return true; }
+    }
+    if (gameState === "CREDITS") {
+      if (checkBtn(width/2, height - 60, "MENU [ESC]", CENTER)) { gameState = "MENU"; return true; }
+    }
   }
   return false;
 }
 
 function mousePressed() {
+  // Wenn ein UI-Button geklickt wurde, brich hier ab
   if (handleGlobalClick()) return;
-  if (gameState === "PLAY" && mouseButton === LEFT && !isTouch) triggerParry(); 
+  
+  // Nur wenn kein Button getroffen wurde und wir im Spiel sind: Parry
+  if (gameState === "PLAY" && mouseButton === LEFT && !isTouch) {
+    triggerParry();
+  }
 }
 
 function touchStarted() { 
@@ -370,6 +461,9 @@ function keyPressed() {
   if (key === 'r' || key === 'R') { resetGame(); gameState = "PLAY"; } 
   if (gameState === "COMIC") { if (keyCode === RIGHT_ARROW) { if(currentComicPage < 5) currentComicPage++; } if (keyCode === LEFT_ARROW) { if(currentComicPage > 0) currentComicPage--; } }
   if (gameState === "PLAY" && (key === ' ' || keyCode === 32)) triggerParry(); 
-  if (gameState === "MENU") { if (key === '1') { resetGame(); gameState = "PLAY"; } if (key === '2') { gameState = "COMIC"; currentComicPage = 0; } if (key === '3') gameState = "TUTORIAL"; if (key === '4') gameState = "CREDITS"; } 
+  if (gameState === "MENU") { if (key === '1') { resetGame(); gameState = "PLAY"; tryFullscreen(); } if (key === '2') { gameState = "COMIC"; currentComicPage = 0; } if (key === '3') gameState = "TUTORIAL"; if (key === '4') gameState = "CREDITS"; } 
 }
-function applyScreenEffects(off) { if (screenShake > 0) { translate(random(-screenShake, screenShake), random(-screenShake, screenShake)); screenShake *= 0.85; } translate(width/2 + off, height/2 + off); scale(gameZoom); translate(-width/2, -height/2); }m
+
+function getPlayerImg() { if (player.state === 'parry') return player.dir === 'r' ? assets.p_parry : assets.p_parrym; if (player.state === 'parryattack') return player.dir === 'r' ? assets.p_parryAtk : assets.p_parryAtkm; if (player.state === 'hit') return player.dir === 'r' ? assets.p_hit : assets.p_hitm; return player.dir === 'r' ? assets.p_walk : assets.p_walkm; }
+
+function applyScreenEffects(off) { if (screenShake > 0) { translate(random(-screenShake, screenShake), random(-screenShake, screenShake)); screenShake *= 0.85; } translate(width/2 + off, height/2 + off); scale(gameZoom); translate(-width/2, -height/2); }
