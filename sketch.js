@@ -3,6 +3,8 @@ let assets = {}, assetsLoaded = 0;
 let musicOn = true;
 let currentComicPage = 0;
 let isNewHS = false;
+let storyVisited = localStorage.getItem("storySeen") === "true";
+let tutorialVisited = localStorage.getItem("tutorialSeen") === "true";
 
 // Tweaks & FX
 let freezeTimer = 0, screenShake = 0, gameZoom = 1, redFlash = 0, globalVolume = 0.5;
@@ -74,6 +76,16 @@ function resetGame() {
 }
 
 function draw() { 
+  // Mobile Support Check
+  if (windowWidth < 800) {
+    background('#D00000'); // Dein Rot-Ton
+    fill(0);               // Schwarz
+    textAlign(CENTER, CENTER);
+    textSize(24);
+    text("Mobile is not supported.\nOpen on PC.", width/2, height/2);
+    return; // Stoppt den Rest der draw-Schleife
+  }
+
   if (gameState === "PLAY") { 
     background(15, 15, 27); 
     if (parryCooldown > 0) parryCooldown--; 
@@ -248,9 +260,32 @@ function drawMenu() {
   let panelW = min(400, width * 0.85); noStroke(); fill(15, 15, 27); rect(0, 0, panelW, height); 
   if (assets.logo) image(assets.logo, panelW/2, 100, 240, 120); 
   let gap = 55; let startY = (height / 2) - 100; let leftX = 40;
+
+  // Button 1
   drawGenericButton("[1] START GAME", leftX, startY, LEFT, () => { resetGame(); gameState = "PLAY"; }); 
-  drawGenericButton("[2] READ COMIC", leftX, startY + gap, LEFT, () => { gameState = "COMIC"; currentComicPage = 0; }); 
-  drawGenericButton("[3] TUTORIAL", leftX, startY + gap*2, LEFT, () => gameState = "TUTORIAL"); 
+
+  // Button 2 (STORY) mit Blink-Logik
+  let storyCol = '#c6b7be'; 
+  if (!storyVisited) {
+    let blink = map(sin(frameCount * 0.1), -1, 1, 100, 255);
+    storyCol = color(255, 255, 255, blink);
+  }
+  drawGenericButton("[2] READ STORY", leftX, startY + gap, LEFT, () => { 
+    gameState = "COMIC"; currentComicPage = 0; 
+    storyVisited = true; localStorage.setItem("storySeen", "true"); 
+  }, storyCol); 
+
+  // Button 3 (TUTORIAL) mit Blink-Logik
+  let tutCol = '#c6b7be';
+  if (!tutorialVisited) {
+    let blink = map(sin(frameCount * 0.1), -1, 1, 100, 255);
+    tutCol = color(255, 255, 255, blink);
+  }
+  drawGenericButton("[3] TUTORIAL", leftX, startY + gap*2, LEFT, () => { 
+    gameState = "TUTORIAL"; 
+    tutorialVisited = true; localStorage.setItem("tutorialSeen", "true");
+  }, tutCol); 
+
   drawGenericButton("[4] CREDITS", leftX, startY + gap*3, LEFT, () => gameState = "CREDITS"); 
   drawGenericButton(musicOn ? "[M] MUSIC ON" : "[M] MUSIC OFF", leftX, startY + gap*4, LEFT, () => { musicOn = !musicOn; toggleMusic(musicOn); }); 
   drawVolumeControl(leftX, startY + gap * 5.2, 120);
@@ -308,7 +343,7 @@ function drawCredits() {
   text("CREDITS", width/2, 60); 
   
   textSize(min(16, width * 0.035)); 
-  let creditText = "A game by Tanmoy Roy\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe -- https://freesound.org/s/550337/ -- License: CC 0"; 
+  let creditText = "A game by Tanmoy Roy\n\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe\nhttps://freesound.org/s/550337/\nLicense: CC 0\n\nStarted in 2022, finished in 2026\n©2026 Tanmoy Roy. All Rights Reserved."; 
   
   // Responsiver Textumbruch für die Credits
   textLeading(25);
@@ -319,7 +354,14 @@ function drawCredits() {
 
 function drawCoverImage(img) { if (!img) return; let r = img.width/img.height, sr = width/height, w, h; if (r > sr) { h = height; w = height * r; } else { w = width; h = width / r; } image(img, width/2, height/2, w, h); }
 function drawResponsiveImage(img, tw, th, yO = 0) { if (!img || img.width <= 1) return; let r = img.width/img.height, tr = tw/th, w, h; if (r > tr) { w = tw; h = tw/r; } else { h = th; w = th*r; } image(img, width/2, height/2 + yO, w, h); }
-function drawGenericButton(txt, x, y, align, callback) { textAlign(align, CENTER); textSize(20); let tw = textWidth(txt); let isHover = (align === CENTER) ? (mouseX > x - tw/2 && mouseX < x + tw/2 && mouseY > y - 20 && mouseY < y + 20) : (align === LEFT) ? (mouseX > x && mouseX < x + tw && mouseY > y - 20 && mouseY < y + 20) : (mouseX > x - tw && mouseX < x && mouseY > y - 20 && mouseY < y + 20); fill(isHover ? '#D00000' : '#c6b7be'); text(txt, x, y); if (isHover && mouseIsPressed) { mouseIsPressed = false; callback(); } }
+function drawGenericButton(txt, x, y, align, callback, customCol) { 
+  textAlign(align, CENTER); textSize(20); let tw = textWidth(txt); 
+  let isHover = (align === CENTER) ? (mouseX > x - tw/2 && mouseX < x + tw/2 && mouseY > y - 20 && mouseY < y + 20) : (align === LEFT) ? (mouseX > x && mouseX < x + tw && mouseY > y - 20 && mouseY < y + 20) : (mouseX > x - tw && mouseX < x && mouseY > y - 20 && mouseY < y + 20); 
+  let baseCol = customCol ? customCol : '#c6b7be';
+  fill(isHover ? '#D00000' : baseCol); 
+  text(txt, x, y); 
+  if (isHover && mouseIsPressed) { mouseIsPressed = false; callback(); } 
+}
 function drawTutorial() { background('#fafbf6'); if (assets.tutorial) drawResponsiveImage(assets.tutorial, width * 0.9, height * 0.8, -30); drawGenericButton("MENU [ESC]", width/2, height - 50, CENTER, () => gameState = "MENU"); }
 function toggleMusic(p) { if (assets.bgm) { if (p && !assets.bgm.isPlaying()) assets.bgm.loop(); else if (!p) assets.bgm.stop(); } }
 function changeVolume(amt) { globalVolume = constrain(globalVolume + amt, 0, 1); outputVolume(globalVolume); }
