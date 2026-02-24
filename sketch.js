@@ -44,7 +44,7 @@ function preload() {
   assets.p_hit = imgLoad('damaged.png'); assets.p_hitm = imgLoad('damagedm.png');
   assets.p_parryAtk = imgLoad('parryattack.png'); assets.p_parryAtkm = imgLoad('parryattackm.png');
   
-  assets.p_ko = imgLoad('ko_p.png'); assets.p_idle = imgLoad('idle_p.png');
+  assets.p_ko = imgLoad('ko_p.png'); assets.p_idle = imgLoad('win_p.png');
   
   assets.e_walk = imgLoad('walkcycle_e.png'); assets.e_walkm = imgLoad('walkcycle_em.png');
   assets.e_atk = imgLoad('attack.png'); assets.e_atkm = imgLoad('attackm.png');
