@@ -28,13 +28,15 @@ function preload() {
   assets.tutorial = imgLoad('tutorial.png');
   
   assets.comic = [];
-  // WICHTIG: Prüfe auf GitHub, ob die Dateien wirklich .png (kleingeschrieben) heißen!
   for(let i=0; i<6; i++) assets.comic[i] = imgLoad(`wp${i+1}.png`);
 
   assets.p_walk = imgLoad('walkcycle_p.png'); assets.p_walkm = imgLoad('walkcycle_pm.png');
   assets.p_parry = imgLoad('parry.png'); assets.p_parrym = imgLoad('parrym.png');
   assets.p_hit = imgLoad('damaged.png'); assets.p_hitm = imgLoad('damagedm.png');
   assets.p_parryAtk = imgLoad('parryattack.png'); assets.p_parryAtkm = imgLoad('parryattackm.png');
+  
+  // Neue Assets für Gameover-Interaktion
+  assets.p_ko = imgLoad('ko_p.png'); assets.p_idle = imgLoad('win_p.png');
   
   assets.e_walk = imgLoad('walkcycle_e.png'); assets.e_walkm = imgLoad('walkcycle_em.png');
   assets.e_atk = imgLoad('attack.png'); assets.e_atkm = imgLoad('attackm.png');
@@ -76,7 +78,6 @@ function resetGame() {
 }
 
 function draw() { 
-  // Mobile Support Check (Weiche Lösung)
   let isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   if (isTouch && windowWidth < 1100) { 
     background('#D00000');
@@ -115,6 +116,7 @@ function draw() {
     else if (gameState === "COMIC") drawComic(); 
     else if (gameState === "CREDITS") drawCredits(); 
     else if (gameState === "GAMEOVER") drawGameOver(); 
+    else if (gameState === "FINISHER") drawFinisher();
   } 
   drawRetroFilter();
 }
@@ -224,7 +226,28 @@ function drawInfiniteBackground() {
     } 
 }
 
-function playGame() { if (assets.bg) drawInfiniteBackground(); if (freezeTimer > 0) freezeTimer--; handlePlayer(); handleEnemies(); let drawList = [{y: player.y, type: 'player'}]; for (let e of enemies) drawList.push({y: e.y, type: 'enemy', data: e}); drawList.sort((a, b) => a.y - b.y); for (let obj of drawList) { if (obj.type === 'player') drawPlayer(); else drawEnemy(obj.data); } if (health <= 0) { if (score > highscore) { isNewHS = true; highscore = score; localStorage.setItem("whiteParryHighscore", highscore); assets.s_win?.play(); } else { isNewHS = false; assets.s_lose?.play(); } gameState = "GAMEOVER"; } }
+function playGame() { 
+    if (assets.bg) drawInfiniteBackground(); 
+    if (freezeTimer > 0) freezeTimer--; 
+    handlePlayer(); 
+    handleEnemies(); 
+    let drawList = [{y: player.y, type: 'player'}]; 
+    for (let e of enemies) drawList.push({y: e.y, type: 'enemy', data: e}); 
+    drawList.sort((a, b) => a.y - b.y); 
+    for (let obj of drawList) { if (obj.type === 'player') drawPlayer(); else drawEnemy(obj.data); } 
+    
+    if (health <= 0) { 
+        if (score > highscore) { 
+            isNewHS = true; highscore = score; 
+            localStorage.setItem("whiteParryHighscore", highscore); 
+        } else { 
+            isNewHS = false; 
+        } 
+        gameState = "FINISHER";
+        freezeTimer = 50; 
+        targetZoom = 1.6;
+    } 
+}
 
 function drawRetroFilter() { push(); stroke(0, 25); strokeWeight(1); for (let i = 0; i < height; i += 4) { line(0, i, width, i); } noFill(); for (let i = 0; i < 6; i++) { stroke(0, map(i, 0, 6, 45, 0)); strokeWeight(i * 15); rect(0, 0, width, height); } pop(); }
 
@@ -262,10 +285,8 @@ function drawMenu() {
   if (assets.logo) image(assets.logo, panelW/2, 100, 240, 120); 
   let gap = 55; let startY = (height / 2) - 100; let leftX = 40;
 
-  // Button 1
   drawGenericButton("[1] START GAME", leftX, startY, LEFT, () => { resetGame(); gameState = "PLAY"; }); 
 
-  // Button 2 (STORY) mit Blink-Logik
   let storyCol = '#c6b7be'; 
   if (!storyVisited) {
     let blink = map(sin(frameCount * 0.1), -1, 1, 100, 255);
@@ -276,7 +297,6 @@ function drawMenu() {
     storyVisited = true; localStorage.setItem("storySeen", "true"); 
   }, storyCol); 
 
-  // Button 3 (TUTORIAL) mit Blink-Logik
   let tutCol = '#c6b7be';
   if (!tutorialVisited) {
     let blink = map(sin(frameCount * 0.1), -1, 1, 100, 255);
@@ -300,25 +320,46 @@ function drawGameOver() {
   let rowY = height - 50;
   let recordSize = min(18, width * 0.04);
   
+  fill('#0f0f1b'); 
+  textAlign(LEFT, CENTER);
   if (isNewHS) {
-    fill('#0f0f1b'); 
-    textAlign(LEFT, CENTER);
     textSize(24); 
     text("NEW KILL RECORD: " + score, 40, rowY);
   } else {
-    fill('#0f0f1b'); 
-    textAlign(LEFT, CENTER);
     textSize(20); 
     text("SCORE: " + score, 40, rowY);
-    
     fill('#565A75');
     let offset = textWidth("SCORE: " + score) + 40;
-    // Responsive: Wenn Fenster zu klein, schiebe den Rekord etwas nach rechts
     text("RECORD: " + highscore, max(offset, 250), rowY);
   }
   
   drawGenericButton("RESTART [R]", width - 260, rowY, RIGHT, () => { resetGame(); gameState = "PLAY"; }); 
   drawGenericButton("MENU [ESC]", width - 40, rowY, RIGHT, () => { gameState = "MENU"; }); 
+}
+
+function drawFinisher() {
+  background(15, 15, 27);
+  if (assets.bg) drawInfiniteBackground();
+  freezeTimer--;
+  screenShake = 6; 
+  gameZoom = lerp(gameZoom, targetZoom, 0.1);
+
+  push();
+  applyScreenEffects(0);
+  for (let e of enemies) {
+    let oldFrame = e.animCounter;
+    e.animCounter = 0; // Fixiere auf erstem Frame der aktuellen Animation
+    drawEnemy(e);
+    e.animCounter = oldFrame;
+  }
+  let finalImg = isNewHS ? assets.p_idle : assets.p_ko;
+  if (finalImg) image(finalImg, width/2, height/2, 414, 414);
+  pop();
+
+  if (freezeTimer <= 0) {
+    if (isNewHS) assets.s_win?.play(); else assets.s_lose?.play();
+    gameState = "GAMEOVER";
+  }
 }
 
 function getPlayerImg() { if (player.state === 'parry') return player.dir === 'r' ? assets.p_parry : assets.p_parrym; if (player.state === 'parryattack') return player.dir === 'r' ? assets.p_parryAtk : assets.p_parryAtkm; if (player.state === 'hit') return player.dir === 'r' ? assets.p_hit : assets.p_hitm; return player.dir === 'r' ? assets.p_walk : assets.p_walkm; }
@@ -327,8 +368,6 @@ function drawComic() {
   background('#fafbf6'); 
   if (assets.comic[currentComicPage]) {
     drawResponsiveImage(assets.comic[currentComicPage], width * 0.95, height * 0.85, -40);
-  } else {
-    fill(0); textAlign(CENTER); text("Loading Comic...", width/2, height/2);
   }
   let btnY = height - 50; 
   drawGenericButton("< PREV", 60, btnY, LEFT, () => { if(currentComicPage > 0) currentComicPage--; }); 
@@ -342,14 +381,10 @@ function drawCredits() {
   textAlign(CENTER, CENTER); 
   textSize(26); 
   text("CREDITS", width/2, 60); 
-  
   textSize(min(16, width * 0.035)); 
   let creditText = "A game by Tanmoy Roy\n\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe\nhttps://freesound.org/s/550337/\nLicense: CC 0\n\nStarted in 2022, finished in 2026.\n©2026 Tanmoy Roy. All Rights Reserved."; 
-  
-  // Responsiver Textumbruch für die Credits
   textLeading(25);
   text(creditText, width * 0.1, height * 0.15, width * 0.8, height * 0.7); 
-  
   drawGenericButton("MENU [ESC]", width/2, height - 60, CENTER, () => gameState = "MENU"); 
 }
 
@@ -374,12 +409,10 @@ function keyPressed() {
   if (key === 'm' || key === 'M') { musicOn = !musicOn; toggleMusic(musicOn); }
   if (keyCode === ESCAPE) { gameState = "MENU"; } 
   if ((key === 'r' || key === 'R')) { resetGame(); gameState = "PLAY"; } 
-  
   if (gameState === "COMIC") {
     if (keyCode === RIGHT_ARROW) { if(currentComicPage < 5) currentComicPage++; }
     if (keyCode === LEFT_ARROW) { if(currentComicPage > 0) currentComicPage--; }
   }
-
   if (gameState === "PLAY" && (key === ' ' || keyCode === 32)) triggerParry(); 
   if (gameState === "MENU") { 
     if (key === '1') { resetGame(); gameState = "PLAY"; } 
