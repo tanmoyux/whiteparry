@@ -5,6 +5,12 @@ let currentComicPage = 0;
 let isNewHS = false;
 let storyVisited = localStorage.getItem("storySeen") === "true";
 let tutorialVisited = localStorage.getItem("tutorialSeen") === "true";
+function injectFonts() {
+  let link = document.createElement('link');
+  link.href = 'https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap';
+  link.rel = 'stylesheet';
+  document.head.appendChild(link);
+}
 
 // Tweaks & FX
 let freezeTimer = 0, screenShake = 0, gameZoom = 1, redFlash = 0, globalVolume = 0.5;
@@ -15,6 +21,9 @@ let targetZoom = 1;
 let runTimer = 0;
 
 function preload() {
+  function preload() {
+  injectFonts();
+  const cb = () => assetsLoaded++;
   const cb = () => assetsLoaded++;
   const imgLoad = (path) => loadImage(path, cb, () => { console.warn("Fehlt: " + path); cb(); });
   const sndLoad = (path) => loadSound(path, cb);
