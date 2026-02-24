@@ -343,7 +343,7 @@ function drawCredits() {
   text("CREDITS", width/2, 60); 
   
   textSize(min(16, width * 0.035)); 
-  let creditText = "A game by Tanmoy Roy\n\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe\nhttps://freesound.org/s/550337/\nLicense: CC 0\n\nStarted in 2022, finished in 2026\n©2026 Tanmoy Roy. All Rights Reserved."; 
+  let creditText = "A game by Tanmoy Roy\n\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe\nhttps://freesound.org/s/550337/\nLicense: CC 0\n\nStarted in 2022, finished in 2026.\n©2026 Tanmoy Roy. All Rights Reserved."; 
   
   // Responsiver Textumbruch für die Credits
   textLeading(25);
