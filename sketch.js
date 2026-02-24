@@ -84,7 +84,7 @@ function draw() {
     fill(0);
     textAlign(CENTER, CENTER);
     textSize(22);
-    text("Mobile is not supported.\nPlease open on a Desktop PC", width/2, height/2);
+    text("Mobile is not supported.\nPlease open on a PC.", width/2, height/2);
     return;
   }
 
