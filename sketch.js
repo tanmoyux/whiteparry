@@ -76,14 +76,15 @@ function resetGame() {
 }
 
 function draw() { 
-  // Mobile Support Check
-  if (windowWidth < 800) {
-    background('#D00000'); // Dein Rot-Ton
-    fill(0);               // Schwarz
+  // Mobile Support Check (Weiche Lösung)
+  let isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (isTouch && windowWidth < 1100) { 
+    background('#D00000');
+    fill(0);
     textAlign(CENTER, CENTER);
-    textSize(24);
-    text("Mobile is not supported.\nOpen on PC.", width/2, height/2);
-    return; // Stoppt den Rest der draw-Schleife
+    textSize(22);
+    text("Mobile is not supported.\nPlease open on a Desktop PC", width/2, height/2);
+    return;
   }
 
   if (gameState === "PLAY") { 
