@@ -5,12 +5,6 @@ let currentComicPage = 0;
 let isNewHS = false;
 let storyVisited = localStorage.getItem("storySeen") === "true";
 let tutorialVisited = localStorage.getItem("tutorialSeen") === "true";
-function injectFonts() {
-  let link = document.createElement('link');
-  link.href = 'https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap';
-  link.rel = 'stylesheet';
-  document.head.appendChild(link);
-}
 
 // Tweaks & FX
 let freezeTimer = 0, screenShake = 0, gameZoom = 1, redFlash = 0, globalVolume = 0.5;
@@ -20,10 +14,16 @@ let parryCooldown = 0;
 let targetZoom = 1;
 let runTimer = 0;
 
+// Sorgt für Font-Support auf allen Geräten
+function injectFonts() {
+  let link = document.createElement('link');
+  link.href = 'https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap';
+  link.rel = 'stylesheet';
+  document.head.appendChild(link);
+}
+
 function preload() {
-  function preload() {
-  injectFonts();
-  const cb = () => assetsLoaded++;
+  injectFonts(); // Font beim Start laden
   const cb = () => assetsLoaded++;
   const imgLoad = (path) => loadImage(path, cb, () => { console.warn("Fehlt: " + path); cb(); });
   const sndLoad = (path) => loadSound(path, cb);
@@ -44,8 +44,7 @@ function preload() {
   assets.p_hit = imgLoad('damaged.png'); assets.p_hitm = imgLoad('damagedm.png');
   assets.p_parryAtk = imgLoad('parryattack.png'); assets.p_parryAtkm = imgLoad('parryattackm.png');
   
-  // Neue Assets für Gameover-Interaktion
-  assets.p_ko = imgLoad('ko_p.png'); assets.p_idle = imgLoad('win_p.png');
+  assets.p_ko = imgLoad('ko_p.png'); assets.p_idle = imgLoad('idle_p.png');
   
   assets.e_walk = imgLoad('walkcycle_e.png'); assets.e_walkm = imgLoad('walkcycle_em.png');
   assets.e_atk = imgLoad('attack.png'); assets.e_atkm = imgLoad('attackm.png');
@@ -93,7 +92,7 @@ function draw() {
     fill(0);
     textAlign(CENTER, CENTER);
     textSize(22);
-    text("Mobile is not supported.\nPlease open on a PC.", width/2, height/2);
+    text("Mobile is not supported.\nPlease open on a Desktop PC", width/2, height/2);
     return;
   }
 
@@ -357,7 +356,7 @@ function drawFinisher() {
   applyScreenEffects(0);
   for (let e of enemies) {
     let oldFrame = e.animCounter;
-    e.animCounter = 0; // Fixiere auf erstem Frame der aktuellen Animation
+    e.animCounter = 0; 
     drawEnemy(e);
     e.animCounter = oldFrame;
   }
