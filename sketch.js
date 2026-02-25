@@ -84,8 +84,10 @@ function setup() {
   if(assets.s_steps) assets.s_steps.setVolume(0.4);
   if(assets.s_e_steps) assets.s_e_steps.setVolume(0.25);
   
+  // Hier wird der Standardwert von Kill Record geändert:
   let savedHS = localStorage.getItem("whiteParryHighscore");
-  highscore = (savedHS !== null) ? parseInt(savedHS) : 30;
+  highscore = (savedHS !== null) ? parseInt(savedHS) : 50; 
+  
   resetGame();
 }
 
