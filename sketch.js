@@ -113,7 +113,7 @@ function draw() {
   let isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   if (isTouch && windowWidth < 1100) { 
     background('#D00000'); fill(0); textAlign(CENTER, CENTER); textSize(22);
-    text("Mobile is not supported.\nPlease open on a Desktop PC", width/2, height/2);
+    text("Mobile is not supported.\nPlease open on a PC.", width/2, height/2);
     return;
   }
   if (gameState === "PLAY") { 
@@ -509,7 +509,7 @@ function drawComic() {
 function drawCredits() { 
   background('#fafbf6'); fill('#0f0f1b'); textAlign(CENTER, CENTER); textSize(26); text("CREDITS", width/2, 60); 
   textSize(min(16, width * 0.035)); 
-  let creditText = "A game by Tanmoy Roy\n\nIdea by Tanmoy Roy & Fatih Urfa\nDesign by Tanmoy Roy\nCoding by Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe\nhttps://freesound.org/s/550337/\nLicense: CC 0\n\nStarted in 2022, finished in 2026.\n©2026 Tanmoy Roy. All Rights Reserved."; 
+  let creditText = "A game by Tanmoy Roy\n\nIdea by Tanmoy Roy & Fatih Urfa\nAnimation, Art, Design & Story by Tanmoy Roy\nVibe Coding via Google Gemini\nSound Effects from Pixabay & Sample Focus\n\nMusic\nSynthwave.wav by Wax_vibe\nhttps://freesound.org/s/550337/\nLicense: CC 0\n\nStarted in 2022, finished in 2026.\n©2026 Tanmoy Roy. All Rights Reserved."; 
   textLeading(25); text(creditText, width * 0.1, height * 0.15, width * 0.8, height * 0.7); 
   drawGenericButton("MENU [ESC]", width/2, height - 60, CENTER, () => gameState = "MENU"); 
 }
