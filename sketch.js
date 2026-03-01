@@ -18,7 +18,7 @@ let runTimer = 0;
 let bloodStains = [];
 let floatingTexts = [];
 
-// --- NEU: AUDIO SAFETY SYSTEM ---
+// --- AUDIO MANAGEMENT ---
 function safeStop(snd) {
     if (snd && snd.isPlaying()) {
         snd.stop();
@@ -29,6 +29,21 @@ function safeLoop(snd) {
     if (snd && !snd.isPlaying()) {
         snd.loop();
     }
+}
+
+// Verhindert das "Blechern" durch radikales Stoppen vor dem Loop
+function toggleMusic(p) {
+  if (assets.bgm) {
+    if (p && musicOn) {
+      if (!assets.bgm.isPlaying()) {
+        assets.bgm.stop(); // Alles Alte killen
+        assets.bgm.setVolume(globalVolume * 0.8);
+        assets.bgm.loop();
+      }
+    } else {
+      assets.bgm.stop();
+    }
+  }
 }
 
 function injectFonts() {
@@ -289,9 +304,7 @@ function checkParrySuccess(e) {
 
 function playerHit() { if (player.invul > 0) return; health--; redFlash = 220; player.state = 'hit'; player.stateTimer = 28; player.animCounter = 0; player.invul = 60; if (assets.s_hit) assets.s_hit.play(); screenShake = 35; }
 
-// --- OPTIMIERTER PARRY TRIGGER (MIT CANCELING) ---
 function triggerParry() { 
-  // Erlaubt Parry aus dem Gehen ODER während man gerade einen Parry-Schlag ausführt (Canceling)
   if ((player.state === 'walk' || player.state === 'parryattack') && parryCooldown <= 0 && freezeTimer <= 0) { 
     player.state = 'parry'; 
     player.stateTimer = 14; 
@@ -360,32 +373,21 @@ function drawPlayer() {
     pop(); 
 }
 
-// --- OPTIMIERTE PLAYER LOGIK (MIT CANCELING) ---
 function handlePlayer() { 
     let s = (player.state === 'hit') ? 3.5 : 6.5; 
     let wasNotMoving = !player.isMoving;
-    
     if (player.state === 'parryattack') s = 10; 
-    
     let mv = false; 
     if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) { player.x -= s; player.dir = 'l'; mv = true; } 
     if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) { player.x += s; player.dir = 'r'; mv = true; } 
     if (keyIsDown(87) || keyIsDown(UP_ARROW)) { player.y -= s; mv = true; } 
     if (keyIsDown(83) || keyIsDown(DOWN_ARROW)) { player.y += s; mv = true; } 
 
-    // Wenn man sich während des Parry-Angriffs bewegt, Frame-Reset für Dodge-Animation
     if (player.state === 'parryattack' && wasNotMoving && mv) {
         player.animCounter = 0; 
     }
-
-    if (player.stateTimer > 0) {
-        player.stateTimer--; 
-    } else {
-        if (player.state !== 'walk' && freezeTimer <= 0) {
-            player.state = 'walk';
-        }
-    }
-    
+    if (player.stateTimer > 0) player.stateTimer--; 
+    else if (player.state !== 'walk' && freezeTimer <= 0) player.state = 'walk';
     player.isMoving = mv; 
     
     if (mv && player.state === 'walk' && freezeTimer <= 0 && gameState === "PLAY") { 
@@ -438,12 +440,12 @@ function drawUI() {
 }
 
 function drawMenu() { 
-  background(15, 15, 27); if (assets.menuBg) { push(); tint(255); drawCoverImage(assets.menuBg); pop(); } 
-  if (musicOn && assets.bgm && !assets.bgm.isPlaying()) toggleMusic(true); 
+  background(15, 15, 27); 
+  if (assets.menuBg) { push(); tint(255); drawCoverImage(assets.menuBg); pop(); } 
   let panelW = min(400, width * 0.85); noStroke(); fill(15, 15, 27); rect(0, 0, panelW, height); 
   if (assets.logo) image(assets.logo, panelW/2, 100, 240, 120); 
   let gap = 55, startY = (height / 2) - 100, leftX = 40;
-  drawGenericButton("[1] START GAME", leftX, startY, LEFT, () => { resetGame(); gameState = "PLAY"; }); 
+  drawGenericButton("[1] START GAME", leftX, startY, LEFT, () => { resetGame(); gameState = "PLAY"; toggleMusic(true); }); 
   let storyCol = storyVisited ? '#c6b7be' : color(255, 255, 255, map(sin(frameCount * 0.1), -1, 1, 100, 255));
   drawGenericButton("[2] READ STORY", leftX, startY + gap, LEFT, () => { gameState = "COMIC"; currentComicPage = 0; storyVisited = true; localStorage.setItem("storySeen", "true"); }, storyCol); 
   let tutCol = tutorialVisited ? '#c6b7be' : color(255, 255, 255, map(sin(frameCount * 0.1), -1, 1, 100, 255));
@@ -459,7 +461,7 @@ function drawGameOver() {
   fill('#0f0f1b'); textAlign(LEFT, CENTER);
   if (isNewHS) { textSize(24); text("NEW KILL RECORD: " + score, 40, rowY); } 
   else { textSize(20); text("SCORE: " + score, 40, rowY); fill('#565A75'); let offset = textWidth("SCORE: " + score) + 40; text("RECORD: " + highscore, max(offset, 250), rowY); }
-  drawGenericButton("RESTART [R]", width - 260, rowY, RIGHT, () => { resetGame(); gameState = "PLAY"; }); 
+  drawGenericButton("RESTART [R]", width - 260, rowY, RIGHT, () => { resetGame(); gameState = "PLAY"; toggleMusic(true); }); 
   drawGenericButton("MENU [ESC]", width - 40, rowY, RIGHT, () => { gameState = "MENU"; }); 
 }
 
@@ -516,21 +518,27 @@ function drawGenericButton(txt, x, y, align, callback, customCol) {
   fill(isHover ? '#D00000' : (customCol || '#c6b7be')); text(txt, x, y); if (isHover && mouseIsPressed) { mouseIsPressed = false; callback(); } 
 }
 function drawTutorial() { background('#fafbf6'); if (assets.tutorial) drawResponsiveImage(assets.tutorial, width * 0.9, height * 0.8, -30); drawGenericButton("MENU [ESC]", width/2, height - 50, CENTER, () => gameState = "MENU"); }
-function toggleMusic(p) { if (assets.bgm) { if (p && !assets.bgm.isPlaying()) assets.bgm.loop(); else if (!p) assets.bgm.stop(); } }
-function changeVolume(amt) { globalVolume = constrain(globalVolume + amt, 0, 1); outputVolume(globalVolume); }
-function drawVolumeControl(x, y, w) { textAlign(LEFT, CENTER); textSize(16); fill('#c6b7be'); text("VOL", x, y); drawGenericButton("-", x + 60, y, CENTER, () => changeVolume(-0.1)); let sliderX = x + 80, knobX = map(globalVolume, 0, 1, sliderX, sliderX + w); if (mouseIsPressed && dist(mouseX, mouseY, knobX, y) < 25) isDraggingVolume = true; if (!mouseIsPressed) isDraggingVolume = false; if (isDraggingVolume) { globalVolume = constrain(map(mouseX, sliderX, sliderX + w, 0, 1), 0, 1); outputVolume(globalVolume); } stroke('#565a75'); strokeWeight(4); line(sliderX, y, sliderX + w, y); noStroke(); fill('#D00000'); ellipse(knobX, y, 18, 18); drawGenericButton("+", x + 100 + w, y, CENTER, () => changeVolume(0.1)); }
+
+function changeVolume(amt) { globalVolume = constrain(globalVolume + amt, 0, 1); outputVolume(globalVolume); if(assets.bgm) assets.bgm.setVolume(globalVolume * 0.8); }
+function drawVolumeControl(x, y, w) { textAlign(LEFT, CENTER); textSize(16); fill('#c6b7be'); text("VOL", x, y); drawGenericButton("-", x + 60, y, CENTER, () => changeVolume(-0.1)); let sliderX = x + 80, knobX = map(globalVolume, 0, 1, sliderX, sliderX + w); if (mouseIsPressed && dist(mouseX, mouseY, knobX, y) < 25) isDraggingVolume = true; if (!mouseIsPressed) isDraggingVolume = false; if (isDraggingVolume) { globalVolume = constrain(map(mouseX, sliderX, sliderX + w, 0, 1), 0, 1); outputVolume(globalVolume); if(assets.bgm) assets.bgm.setVolume(globalVolume * 0.8); } stroke('#565a75'); strokeWeight(4); line(sliderX, y, sliderX + w, y); noStroke(); fill('#D00000'); ellipse(knobX, y, 18, 18); drawGenericButton("+", x + 100 + w, y, CENTER, () => changeVolume(0.1)); }
 
 function keyPressed() { 
-  if (key === '+' || key === '=') changeVolume(0.1); if (key === '-' || key === '_') changeVolume(-0.1); if (key === 'm' || key === 'M') { musicOn = !musicOn; toggleMusic(musicOn); }
-  if (keyCode === ESCAPE) { gameState = "MENU"; stopAllGameSounds(); } if ((key === 'r' || key === 'R')) { resetGame(); gameState = "PLAY"; } 
-  if (gameState === "COMIC") { if (keyCode === RIGHT_ARROW) { if(currentComicPage < 5) currentComicPage++; } if (keyCode === LEFT_ARROW) { if(currentComicPage > 0) currentComicPage--; } }
+  userStartAudio();
+  if (key === '+' || key === '=') changeVolume(0.1); if (key === '-' || key === '_') changeVolume(-0.1); 
+  if (key === 'm' || key === 'M') { musicOn = !musicOn; toggleMusic(musicOn); }
+  if (keyCode === ESCAPE) { gameState = "MENU"; stopAllGameSounds(); } 
+  if ((key === 'r' || key === 'R')) { resetGame(); gameState = "PLAY"; toggleMusic(true); } 
   if (gameState === "PLAY" && (key === ' ' || keyCode === 32)) triggerParry(); 
   if (gameState === "MENU") { 
-    if (key === '1') { resetGame(); gameState = "PLAY"; } 
+    if (key === '1') { resetGame(); gameState = "PLAY"; toggleMusic(true); } 
     if (key === '2') { gameState = "COMIC"; currentComicPage = 0; storyVisited = true; localStorage.setItem("storySeen", "true"); } 
     if (key === '3') { gameState = "TUTORIAL"; tutorialVisited = true; localStorage.setItem("tutorialSeen", "true"); } 
     if (key === '4') gameState = "CREDITS"; 
   } 
 }
 function applyScreenEffects(off) { if (screenShake > 0) { translate(random(-screenShake, screenShake), random(-screenShake, screenShake)); screenShake *= 0.85; } translate(width/2 + off, height/2 + off); scale(gameZoom); translate(-width/2, -height/2); }
-function mousePressed() { userStartAudio(); if (gameState === "PLAY" && mouseButton === LEFT) triggerParry(); }
+function mousePressed() { 
+  userStartAudio(); 
+  if (musicOn && assets.bgm && !assets.bgm.isPlaying()) toggleMusic(true);
+  if (gameState === "PLAY" && mouseButton === LEFT) triggerParry(); 
+}
