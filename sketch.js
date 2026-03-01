@@ -18,7 +18,7 @@ let runTimer = 0;
 let bloodStains = [];
 let floatingTexts = [];
 
-// --- AUDIO MANAGEMENT ---
+// --- AUDIO SAFETY SYSTEM ---
 function safeStop(snd) {
     if (snd && snd.isPlaying()) {
         snd.stop();
@@ -31,12 +31,12 @@ function safeLoop(snd) {
     }
 }
 
-// Verhindert das "Blechern" durch radikales Stoppen vor dem Loop
+// Verhindert das "Blechern" durch Singleton-Logik
 function toggleMusic(p) {
   if (assets.bgm) {
     if (p && musicOn) {
       if (!assets.bgm.isPlaying()) {
-        assets.bgm.stop(); // Alles Alte killen
+        assets.bgm.stop(); 
         assets.bgm.setVolume(globalVolume * 0.8);
         assets.bgm.loop();
       }
@@ -125,7 +125,7 @@ function stopAllGameSounds() {
 
 function resetGame() {
   stopAllGameSounds();
-  player = { x: 0, y: 0, frame: 0, dir: 'r', state: 'walk', stateTimer: 0, animCounter: 0, isMoving: false, invul: 0 };
+  player = { x: 0, y: 0, frame: 0, dir: 'r', state: 'walk', stateTimer: 0, animCounter: 0, isMoving: false, invul: 0, moveDir: createVector(0,0) };
   enemies = []; score = 0; health = 4; startTime = millis();
   freezeTimer = 0; screenShake = 0; gameZoom = 1; redFlash = 0; multikillAnim = 0;
   parryCooldown = 0; targetZoom = 1; runTimer = 0;
@@ -189,8 +189,7 @@ function updateDynamicZoom() {
 function handleEnemies() {
   let spawnRate = max(25, 80 - floor(score/3.2));
   if (frameCount % spawnRate === 0 && enemies.length < 15) {
-    let ang = random(TWO_PI); let isElite = ((millis() - startTime) / 1000) > 8 && random() < 0.35; 
-    enemies.push({ x: player.x + cos(ang)*1400, y: player.y + sin(ang)*1400, state: 'walk', frame: 0, animCounter: random(8), cooldown: 0, speed: isElite ? random(4.2, 4.8) : random(2.8, 3.5), hp: isElite ? 2 : 1, isElite: isElite, isDashing: false, windupSpeed: random() > 0.5 ? 0.35 : 0.12 });
+    spawnEnemy();
   }
 
   let anyEnemyMovingNearby = false;
@@ -198,12 +197,35 @@ function handleEnemies() {
   for (let i = enemies.length - 1; i >= 0; i--) {
     let e = enemies[i]; let d = dist(player.x, player.y, e.x, e.y); if (e.cooldown > 0) e.cooldown--;
     
+    // Respawn Logik: Wenn zu weit weg (aus der Sicht)
+    if (d > 2200 && e.state !== 'dead') {
+        let savedElite = e.isElite;
+        enemies.splice(i, 1);
+        spawnEnemy(savedElite);
+        continue;
+    }
+
     if (e.state === 'walk') { 
         if (freezeTimer <= 0) e.animCounter += 0.2;
         if (d < 800) anyEnemyMovingNearby = true;
         
         let a = atan2(player.y - e.y, player.x - e.x); 
-        if (d > 127) { e.x += cos(a) * e.speed; e.y += sin(a) * e.speed; } 
+        let nextX = e.x + cos(a) * e.speed;
+        let nextY = e.y + sin(a) * e.speed;
+
+        // Separation (Anti-Verklumpen)
+        for (let other of enemies) {
+          if (other !== e && other.state !== 'dead') {
+            let d2 = dist(nextX, nextY, other.x, other.y);
+            if (d2 < 85) {
+              let pushA = atan2(e.y - other.y, e.x - other.x);
+              nextX += cos(pushA) * 2;
+              nextY += sin(pushA) * 2;
+            }
+          }
+        }
+        
+        if (d > 127) { e.x = nextX; e.y = nextY; } 
         if (e.cooldown <= 0) { 
             if (d < 190) { 
                 e.state = 'attack'; e.animCounter = 0; e.isDashing = false; 
@@ -258,6 +280,30 @@ function handleEnemies() {
   } else {
       safeStop(assets.s_e_steps);
   }
+}
+
+function spawnEnemy(forcedElite = null) {
+    let ang;
+    if (player.isMoving && player.moveDir.mag() > 0.1) {
+        let baseAng = player.moveDir.heading();
+        ang = baseAng + random(-HALF_PI, HALF_PI);
+    } else {
+        ang = random(TWO_PI);
+    }
+    let isElite = forcedElite !== null ? forcedElite : (((millis() - startTime) / 1000) > 8 && random() < 0.35); 
+    enemies.push({ 
+        x: player.x + cos(ang)*1400, 
+        y: player.y + sin(ang)*1400, 
+        state: 'walk', 
+        frame: 0, 
+        animCounter: random(8), 
+        cooldown: 0, 
+        speed: isElite ? random(4.2, 4.8) : random(2.8, 3.5), 
+        hp: isElite ? 2 : 1, 
+        isElite: isElite, 
+        isDashing: false, 
+        windupSpeed: random() > 0.5 ? 0.35 : 0.12 
+    });
 }
 
 function checkParrySuccess(e) { 
@@ -378,10 +424,16 @@ function handlePlayer() {
     let wasNotMoving = !player.isMoving;
     if (player.state === 'parryattack') s = 10; 
     let mv = false; 
-    if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) { player.x -= s; player.dir = 'l'; mv = true; } 
-    if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) { player.x += s; player.dir = 'r'; mv = true; } 
-    if (keyIsDown(87) || keyIsDown(UP_ARROW)) { player.y -= s; mv = true; } 
-    if (keyIsDown(83) || keyIsDown(DOWN_ARROW)) { player.y += s; mv = true; } 
+    let moveX = 0, moveY = 0;
+
+    if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) { moveX = -1; player.dir = 'l'; mv = true; } 
+    if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) { moveX = 1; player.dir = 'r'; mv = true; } 
+    if (keyIsDown(87) || keyIsDown(UP_ARROW)) { moveY = -1; mv = true; } 
+    if (keyIsDown(83) || keyIsDown(DOWN_ARROW)) { moveY = 1; mv = true; } 
+
+    player.moveDir.set(moveX, moveY);
+    player.x += moveX * s;
+    player.y += moveY * s;
 
     if (player.state === 'parryattack' && wasNotMoving && mv) {
         player.animCounter = 0; 
@@ -535,10 +587,11 @@ function keyPressed() {
     if (key === '3') { gameState = "TUTORIAL"; tutorialVisited = true; localStorage.setItem("tutorialSeen", "true"); } 
     if (key === '4') gameState = "CREDITS"; 
   } 
+  if (gameState === "COMIC") { if (keyCode === RIGHT_ARROW) { if(currentComicPage < 5) currentComicPage++; } if (keyCode === LEFT_ARROW) { if(currentComicPage > 0) currentComicPage--; } }
 }
 function applyScreenEffects(off) { if (screenShake > 0) { translate(random(-screenShake, screenShake), random(-screenShake, screenShake)); screenShake *= 0.85; } translate(width/2 + off, height/2 + off); scale(gameZoom); translate(-width/2, -height/2); }
 function mousePressed() { 
   userStartAudio(); 
-  if (musicOn && assets.bgm && !assets.bgm.isPlaying()) toggleMusic(true);
+  if (musicOn && assets.bgm && !assets.bgm.isPlaying() && (gameState === "MENU" || gameState === "PLAY")) toggleMusic(true);
   if (gameState === "PLAY" && mouseButton === LEFT) triggerParry(); 
 }
