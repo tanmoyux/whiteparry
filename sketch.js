@@ -18,6 +18,19 @@ let runTimer = 0;
 let bloodStains = [];
 let floatingTexts = [];
 
+// --- NEU: AUDIO SAFETY SYSTEM ---
+function safeStop(snd) {
+    if (snd && snd.isPlaying()) {
+        snd.stop();
+    }
+}
+
+function safeLoop(snd) {
+    if (snd && !snd.isPlaying()) {
+        snd.loop();
+    }
+}
+
 function injectFonts() {
   let link = document.createElement('link');
   link.href = 'https://fonts.googleapis.com/css2?family=Rubik+Mono+One&display=swap';
@@ -47,8 +60,7 @@ function preload() {
   assets.p_hit = imgLoad('damaged.png'); assets.p_hitm = imgLoad('damagedm.png');
   assets.p_parryAtk = imgLoad('parryattack.png'); assets.p_parryAtkm = imgLoad('parryattackm.png');
   assets.p_dodge = imgLoad('dodge.png'); assets.p_dodgem = imgLoad('dodgem.png');
-  assets.p_ko = imgLoad('ko_p.png'); 
-  assets.p_win = imgLoad('win_p.png'); 
+  assets.p_ko = imgLoad('ko_p.png'); assets.p_win = imgLoad('win_p.png'); 
   assets.p_idle = imgLoad('idle_p.png'); assets.p_idlem = imgLoad('idle_pm.png');
 
   assets.e_walk = imgLoad('walkcycle_e.png'); assets.e_walkm = imgLoad('walkcycle_em.png');
@@ -67,10 +79,8 @@ function preload() {
   assets.s_hit = sndLoad('slash_hit.mp3'); assets.s_win = sndLoad('win.mp3'); 
   assets.s_lose = sndLoad('lose.mp3'); assets.s_multikill = sndLoad('multikill.mp3'); 
   assets.bgm = sndLoad('gamemusic.mp3'); assets.s_charge = sndLoad('charge.mp3'); 
-  assets.s_dash = sndLoad('dash.mp3');
-  assets.s_steps = sndLoad('steps.mp3'); 
-  assets.s_e_steps = sndLoad('steps.mp3'); 
-  assets.s_attack_vocal = sndLoad('attack.mp3');
+  assets.s_dash = sndLoad('dash.mp3'); assets.s_steps = sndLoad('steps.mp3'); 
+  assets.s_e_steps = sndLoad('steps.mp3'); assets.s_attack_vocal = sndLoad('attack.mp3');
 }
 
 function setup() {
@@ -86,18 +96,16 @@ function setup() {
   
   let savedHS = localStorage.getItem("whiteParryHighscore");
   highscore = (savedHS !== null) ? parseInt(savedHS) : 40; 
-  
   resetGame();
 }
 
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 
 function stopAllGameSounds() {
-  // Stoppt nur Looping-Sounds und das BGM, falls nötig, um Buffer-Leaks zu vermeiden
-  if(assets.s_steps) assets.s_steps.stop();
-  if(assets.s_e_steps) assets.s_e_steps.stop();
-  if(assets.s_dash) assets.s_dash.stop();
-  if(assets.s_charge) assets.s_charge.stop();
+  safeStop(assets.s_steps);
+  safeStop(assets.s_e_steps);
+  safeStop(assets.s_dash);
+  safeStop(assets.s_charge);
 }
 
 function resetGame() {
@@ -110,6 +118,10 @@ function resetGame() {
 }
 
 function draw() { 
+  if (getAudioContext().state !== 'running') {
+    getAudioContext().resume();
+  }
+
   let isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   if (isTouch && windowWidth < 1100) { 
     background('#D00000'); fill(0); textAlign(CENTER, CENTER); 
@@ -174,28 +186,7 @@ function handleEnemies() {
     if (e.state === 'walk') { 
         if (freezeTimer <= 0) e.animCounter += 0.2;
         if (d < 800) anyEnemyMovingNearby = true;
-
-        for (let other of enemies) {
-          if (e !== other && other.state === 'walk') {
-            let distOther = dist(e.x, e.y, other.x, other.y);
-            if (distOther < 85) { 
-              let pushForce = createVector(e.x - other.x, e.y - other.y).normalize().mult(1.5);
-              e.x += pushForce.x; e.y += pushForce.y;
-            }
-          }
-        }
-        if (!e.isElite && d > 1600) {
-            let pVel = createVector(0, 0);
-            if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) pVel.x = -1;
-            if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) pVel.x = 1;
-            if (keyIsDown(87) || keyIsDown(UP_ARROW)) pVel.y = -1;
-            if (keyIsDown(83) || keyIsDown(DOWN_ARROW)) pVel.y = 1;
-            if (pVel.mag() > 0) {
-              pVel.normalize().mult(1500);
-              e.x = player.x + pVel.x + random(-250, 250);
-              e.y = player.y + pVel.y + random(-250, 250);
-            }
-        }
+        
         let a = atan2(player.y - e.y, player.x - e.x); 
         if (d > 127) { e.x += cos(a) * e.speed; e.y += sin(a) * e.speed; } 
         if (e.cooldown <= 0) { 
@@ -237,7 +228,7 @@ function handleEnemies() {
       if (freezeTimer <= 0) e.animCounter += 0.2; 
       if (e.animCounter >= 10) {
         bloodStains.push({ x: e.x, y: e.y, img: e.isElite ? assets.eg_ko : assets.e_ko, f: random() > 0.5 ? 8 : 9, dir: player.x > e.x ? 1 : -1 });
-        if (bloodStains.length > 300) bloodStains.shift(); 
+        if (bloodStains.length > 100) bloodStains.shift(); 
         enemies.splice(i, 1); 
       }
     }
@@ -247,12 +238,10 @@ function handleEnemies() {
     }
   }
 
-  if (assets.s_e_steps) {
-    if (anyEnemyMovingNearby && freezeTimer <= 0) {
-      if (!assets.s_e_steps.isPlaying()) assets.s_e_steps.loop();
-    } else {
-      assets.s_e_steps.stop();
-    }
+  if (anyEnemyMovingNearby && freezeTimer <= 0 && gameState === "PLAY") {
+      safeLoop(assets.s_e_steps);
+  } else {
+      safeStop(assets.s_e_steps);
   }
 }
 
@@ -265,7 +254,7 @@ function checkParrySuccess(e) {
     parryCooldown = 0; 
     
     if (hits.length >= 2) { 
-        assets.s_multikill?.play(); 
+        if (assets.s_multikill) assets.s_multikill.play(); 
         screenShake = 100; 
         freezeTimer = 85;  
         multikillAnim = 45; 
@@ -285,12 +274,12 @@ function checkParrySuccess(e) {
         floatingTexts.push({ x: player.x, y: player.y - 160, txt: "+" + totalGain, life: 120, size: 60, speed: 1.2 });
     } else { 
         e.hp--; 
-        assets.s_parry?.play(); 
+        if (assets.s_parry) assets.s_parry.play(); 
         if (e.hp > 0) { e.state = 'parried'; e.animCounter = 0; freezeTimer = 18; } 
         else { 
             let pVal = e.isElite ? 2 : 1;
             e.state = 'dead'; e.animCounter = 0; score += pVal; 
-            assets.s_kill?.play(); 
+            if (assets.s_kill) assets.s_kill.play(); 
             freezeTimer = 22; 
             screenShake = 25;
             floatingTexts.push({ x: e.x, y: e.y - 120, txt: "+" + pVal, life: 80, size: 34, speed: 1.8 });
@@ -298,8 +287,20 @@ function checkParrySuccess(e) {
     } 
 }
 
-function playerHit() { if (player.invul > 0) return; health--; redFlash = 220; player.state = 'hit'; player.stateTimer = 28; player.animCounter = 0; player.invul = 60; assets.s_hit?.play(); screenShake = 35; }
-function triggerParry() { if (player.state === 'walk' && parryCooldown <= 0 && freezeTimer <= 0) { player.state = 'parry'; player.stateTimer = 14; player.animCounter = 0; parryCooldown = 45; let hitAny = enemies.some(e => e.state === 'attack' && dist(player.x, player.y, e.x, e.y) < 240); if (!hitAny && assets.s_parry_miss) assets.s_parry_miss.play(); } }
+function playerHit() { if (player.invul > 0) return; health--; redFlash = 220; player.state = 'hit'; player.stateTimer = 28; player.animCounter = 0; player.invul = 60; if (assets.s_hit) assets.s_hit.play(); screenShake = 35; }
+
+// --- OPTIMIERTER PARRY TRIGGER (MIT CANCELING) ---
+function triggerParry() { 
+  // Erlaubt Parry aus dem Gehen ODER während man gerade einen Parry-Schlag ausführt (Canceling)
+  if ((player.state === 'walk' || player.state === 'parryattack') && parryCooldown <= 0 && freezeTimer <= 0) { 
+    player.state = 'parry'; 
+    player.stateTimer = 14; 
+    player.animCounter = 0; 
+    parryCooldown = 45; 
+    let hitAny = enemies.some(e => e.state === 'attack' && dist(player.x, player.y, e.x, e.y) < 240); 
+    if (!hitAny && assets.s_parry_miss) assets.s_parry_miss.play(); 
+  } 
+}
 
 function drawBlood() {
   for (let b of bloodStains) {
@@ -359,29 +360,38 @@ function drawPlayer() {
     pop(); 
 }
 
+// --- OPTIMIERTE PLAYER LOGIK (MIT CANCELING) ---
 function handlePlayer() { 
     let s = (player.state === 'hit') ? 3.5 : 6.5; 
     let wasNotMoving = !player.isMoving;
+    
     if (player.state === 'parryattack') s = 10; 
+    
     let mv = false; 
     if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) { player.x -= s; player.dir = 'l'; mv = true; } 
     if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) { player.x += s; player.dir = 'r'; mv = true; } 
     if (keyIsDown(87) || keyIsDown(UP_ARROW)) { player.y -= s; mv = true; } 
     if (keyIsDown(83) || keyIsDown(DOWN_ARROW)) { player.y += s; mv = true; } 
 
+    // Wenn man sich während des Parry-Angriffs bewegt, Frame-Reset für Dodge-Animation
     if (player.state === 'parryattack' && wasNotMoving && mv) {
         player.animCounter = 0; 
     }
-    if (player.stateTimer > 0) player.stateTimer--; 
-    else if (player.state !== 'walk' && freezeTimer <= 0) player.state = 'walk';
+
+    if (player.stateTimer > 0) {
+        player.stateTimer--; 
+    } else {
+        if (player.state !== 'walk' && freezeTimer <= 0) {
+            player.state = 'walk';
+        }
+    }
+    
     player.isMoving = mv; 
     
-    if (assets.s_steps) {
-        if (mv && player.state === 'walk' && freezeTimer <= 0) { 
-            if (!assets.s_steps.isPlaying()) assets.s_steps.loop(); 
-        } else { 
-            assets.s_steps.stop(); 
-        }
+    if (mv && player.state === 'walk' && freezeTimer <= 0 && gameState === "PLAY") { 
+        safeLoop(assets.s_steps); 
+    } else { 
+        safeStop(assets.s_steps); 
     }
 }
 
@@ -523,4 +533,4 @@ function keyPressed() {
   } 
 }
 function applyScreenEffects(off) { if (screenShake > 0) { translate(random(-screenShake, screenShake), random(-screenShake, screenShake)); screenShake *= 0.85; } translate(width/2 + off, height/2 + off); scale(gameZoom); translate(-width/2, -height/2); }
-function mousePressed() { if (gameState === "PLAY" && mouseButton === LEFT) triggerParry(); }
+function mousePressed() { userStartAudio(); if (gameState === "PLAY" && mouseButton === LEFT) triggerParry(); }
