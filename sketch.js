@@ -84,9 +84,8 @@ function setup() {
   if(assets.s_steps) assets.s_steps.setVolume(0.4);
   if(assets.s_e_steps) assets.s_e_steps.setVolume(0.25);
   
-  // Hier wird der Standardwert von Kill Record geändert:
   let savedHS = localStorage.getItem("whiteParryHighscore");
-  highscore = (savedHS !== null) ? parseInt(savedHS) : 50; 
+  highscore = (savedHS !== null) ? parseInt(savedHS) : 40; 
   
   resetGame();
 }
@@ -94,6 +93,7 @@ function setup() {
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 
 function stopAllGameSounds() {
+  // Stoppt nur Looping-Sounds und das BGM, falls nötig, um Buffer-Leaks zu vermeiden
   if(assets.s_steps) assets.s_steps.stop();
   if(assets.s_e_steps) assets.s_e_steps.stop();
   if(assets.s_dash) assets.s_dash.stop();
@@ -112,7 +112,8 @@ function resetGame() {
 function draw() { 
   let isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
   if (isTouch && windowWidth < 1100) { 
-    background('#D00000'); fill(0); textAlign(CENTER, CENTER); textSize(22);
+    background('#D00000'); fill(0); textAlign(CENTER, CENTER); 
+    textSize(constrain(windowWidth * 0.05, 16, 22));
     text("Mobile is not supported.\nPlease open on a PC.", width/2, height/2);
     return;
   }
@@ -225,7 +226,7 @@ function handleEnemies() {
         else e.animCounter += 0.35; 
       } 
       let f = floor(e.animCounter); 
-      if ((f === 5 || f === 6) && player.state === 'parry') checkParrySuccess(e); 
+      if ((f === 5 || f === 6) && player.state === 'parry' && d < 240) checkParrySuccess(e); 
       else if (f === 7 && e.animCounter < 7.4) { 
           if (d < 280 && player.invul <= 0 && player.state !== 'parryattack') { playerHit(); e.animCounter = 7.5; } 
           else { if (assets.s_slash_miss) assets.s_slash_miss.play(); e.animCounter = 7.5; } 
@@ -256,7 +257,7 @@ function handleEnemies() {
 }
 
 function checkParrySuccess(e) { 
-    let hits = enemies.filter(o => o.state === 'attack' && dist(player.x, player.y, o.x, o.y) < 380); 
+    let hits = enemies.filter(o => o.state === 'attack' && dist(player.x, player.y, o.x, o.y) < 240); 
     player.state = 'parryattack'; 
     player.stateTimer = 45; 
     player.animCounter = 0; 
@@ -298,7 +299,7 @@ function checkParrySuccess(e) {
 }
 
 function playerHit() { if (player.invul > 0) return; health--; redFlash = 220; player.state = 'hit'; player.stateTimer = 28; player.animCounter = 0; player.invul = 60; assets.s_hit?.play(); screenShake = 35; }
-function triggerParry() { if (player.state === 'walk' && parryCooldown <= 0 && freezeTimer <= 0) { player.state = 'parry'; player.stateTimer = 14; player.animCounter = 0; parryCooldown = 45; let hitAny = enemies.some(e => e.state === 'attack' && dist(player.x, player.y, e.x, e.y) < 380); if (!hitAny && assets.s_parry_miss) assets.s_parry_miss.play(); } }
+function triggerParry() { if (player.state === 'walk' && parryCooldown <= 0 && freezeTimer <= 0) { player.state = 'parry'; player.stateTimer = 14; player.animCounter = 0; parryCooldown = 45; let hitAny = enemies.some(e => e.state === 'attack' && dist(player.x, player.y, e.x, e.y) < 240); if (!hitAny && assets.s_parry_miss) assets.s_parry_miss.play(); } }
 
 function drawBlood() {
   for (let b of bloodStains) {
@@ -325,6 +326,7 @@ function handleFloatingTexts() {
 
 function drawPlayer() { 
     let img = getPlayerImg(); 
+    if (!img || img.width <= 0) return; 
     let isDodge = (player.state === 'parryattack' && player.isMoving);
     let fCount = (player.state === 'parry') ? 3 : 
                  (player.state === 'hit') ? 6 : 
@@ -332,61 +334,46 @@ function drawPlayer() {
                  isDodge ? 3 : 
                  (player.state === 'walk' && !player.isMoving) ? 1 : 8; 
     
-    if (img) { 
-        let sw = img.width / fCount; 
-        
-        if (freezeTimer <= 0) {
-            player.animCounter += isDodge ? 0.25 : 0.22;
-        } else {
-            // ZEITLUPE WÄHREND FREEZE (Ganze Animation Frame 0 bis 2)
-            if (player.state === 'parryattack' && !player.isMoving) {
-                if (multikillAnim > 0) {
-                    // Streckt die 3 Frames über die Dauer des Multiparry-Freezes
-                    player.animCounter = map(freezeTimer, 85, 0, 0, 2.9);
-                } else {
-                    // Normaler Parry-Freeze (kürzer)
-                    player.animCounter = map(freezeTimer, 22, 0, 0, 1.5);
-                }
+    let sw = img.width / fCount; 
+    if (freezeTimer <= 0) {
+        player.animCounter += isDodge ? 0.25 : 0.22;
+    } else {
+        if (player.state === 'parryattack' && !player.isMoving) {
+            if (multikillAnim > 0) {
+                player.animCounter = map(freezeTimer, 85, 0, 0, 2.9);
+            } else {
+                player.animCounter = map(freezeTimer, 22, 0, 0, 1.5);
             }
         }
-        
-        if (player.state === 'hit' || player.state === 'parryattack') {
-            player.frame = min(floor(player.animCounter), fCount - 1);
-        } else {
-            player.frame = (!player.isMoving && player.state === 'walk') ? 0 : floor(player.animCounter) % fCount; 
-        }
+    }
+    
+    if (player.state === 'hit' || player.state === 'parryattack') {
+        player.frame = min(floor(player.animCounter), fCount - 1);
+    } else {
+        player.frame = (!player.isMoving && player.state === 'walk') ? 0 : floor(player.animCounter) % fCount; 
+    }
 
-        push(); 
-        if (player.invul > 0 && frameCount % 4 < 2) tint(255, 150); 
-        image(img, width/2, height/2, 414, 414, player.frame * sw, 0, sw, img.height); 
-        pop(); 
-    } 
+    push(); 
+    if (player.invul > 0 && frameCount % 4 < 2) tint(255, 150); 
+    image(img, width/2, height/2, 414, 414, player.frame * sw, 0, sw, img.height); 
+    pop(); 
 }
 
 function handlePlayer() { 
     let s = (player.state === 'hit') ? 3.5 : 6.5; 
     let wasNotMoving = !player.isMoving;
-    
     if (player.state === 'parryattack') s = 10; 
-    
     let mv = false; 
-    let canMove = ['walk', 'hit'].includes(player.state) || 
-                  (player.state === 'parryattack' && (freezeTimer <= 30 || freezeTimer === 0));
-
     if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) { player.x -= s; player.dir = 'l'; mv = true; } 
     if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) { player.x += s; player.dir = 'r'; mv = true; } 
     if (keyIsDown(87) || keyIsDown(UP_ARROW)) { player.y -= s; mv = true; } 
     if (keyIsDown(83) || keyIsDown(DOWN_ARROW)) { player.y += s; mv = true; } 
 
-    // Wenn man sich während der Parry-Attack bewegt, wird die Animation für den Dodge zurückgesetzt
     if (player.state === 'parryattack' && wasNotMoving && mv) {
         player.animCounter = 0; 
-        // Wir lassen den Freeze weiterlaufen, aber der Player darf "entkommen"
     }
-    
     if (player.stateTimer > 0) player.stateTimer--; 
     else if (player.state !== 'walk' && freezeTimer <= 0) player.state = 'walk';
-    
     player.isMoving = mv; 
     
     if (assets.s_steps) {
@@ -405,7 +392,7 @@ function drawEnemy(e) {
     else if (e.state === 'parried') { img = isR ? (e.isElite ? assets.eg_parried : assets.e_parried) : (e.isElite ? assets.eg_parriedm : assets.e_parriedm); fCount = 6; } 
     else if (e.state === 'attack') { img = isR ? (e.isElite ? assets.eg_atk : assets.e_atk) : (e.isElite ? assets.eg_atkm : assets.e_atkm); fCount = 8; } 
     else { img = isR ? (e.isElite ? assets.eg_walk : assets.e_walk) : (e.isElite ? assets.eg_walkm : assets.e_walkm); fCount = 8; } 
-    if (img) { 
+    if (img && img.width > 0) { 
         let sw = img.width/fCount; let f = (e.state === 'dead' || e.state === 'parried') ? min(floor(e.animCounter), fCount-1) : floor(e.animCounter) % fCount; 
         push(); if (e.state === 'attack' && (f === 5 || f === 6)) tint(255, 180); 
         image(img, relX, relY, 414, 414, f * sw, 0, sw, img.height); pop(); 
@@ -414,15 +401,15 @@ function drawEnemy(e) {
 
 function drawInfiniteBackground() { 
     let tw = 144, th = 216; let sx = -(player.x % tw), sy = -(player.y % th); 
-    for (let x = sx-tw*4; x < width+tw*4; x += tw) { for (let y = sy-th*4; y < height+th*4; y += th) { image(assets.bg, x + tw/2, y + th/2, tw, th); } }
+    for (let x = sx-tw*4; x < width+tw*4; x += tw) { for (let y = sy-th*4; y < height+th*4; y += th) { if(assets.bg) image(assets.bg, x + tw/2, y + th/2, tw, th); } }
 }
 
 function playGame() { 
     if (assets.bg) drawInfiniteBackground(); if (freezeTimer > 0) freezeTimer--; 
     drawBlood();
     handlePlayer(); handleEnemies(); 
-    let drawList = [{y: player.y, type: 'player'}]; for (let e of enemies) drawList.push({y: e.y, type: 'enemy', data: e}); 
-    drawList.sort((a, b) => a.y - b.y); for (let obj of drawList) { if (obj.type === 'player') drawPlayer(); else drawEnemy(obj.data); } 
+    let drawList = [{y: player.y, type: 'player'}]; for (let e of enemies) if(e) drawList.push({y: e.y, type: 'enemy', data: e}); 
+    drawList.sort((a, b) => a.y - b.y); for (let obj of drawList) { if (obj.type === 'player') drawPlayer(); else if(obj.data) drawEnemy(obj.data); } 
     handleFloatingTexts();
     if (health <= 0) { 
         stopAllGameSounds(); if (score > highscore) { isNewHS = true; highscore = score; localStorage.setItem("whiteParryHighscore", highscore); } else { isNewHS = false; } 
@@ -471,16 +458,13 @@ function drawFinisher() {
   freezeTimer--; screenShake = 6; gameZoom = lerp(gameZoom, targetZoom, 0.1);
   push(); applyScreenEffects(0);
   let drawList = [{y: player.y, type: 'player'}];
-  for (let e of enemies) {
-      if (e.state === 'dead') e.animCounter = 9; 
-      drawList.push({y: e.y, type: 'enemy', data: e});
-  }
+  for (let e of enemies) { if (e.state === 'dead') e.animCounter = 9; drawList.push({y: e.y, type: 'enemy', data: e}); }
   drawList.sort((a, b) => a.y - b.y);
   for (let obj of drawList) {
       if (obj.type === 'player') {
           let finalImg = isNewHS ? assets.p_win : assets.p_ko; 
-          if (finalImg) image(finalImg, width/2, height/2, 414, 414);
-      } else {
+          if (finalImg && finalImg.width > 0) image(finalImg, width/2, height/2, 414, 414);
+      } else if(obj.data) {
           drawEnemy(obj.data);
       }
   }
@@ -514,8 +498,8 @@ function drawCredits() {
   drawGenericButton("MENU [ESC]", width/2, height - 60, CENTER, () => gameState = "MENU"); 
 }
 
-function drawCoverImage(img) { if (!img) return; let r = img.width/img.height, sr = width/height, w, h; if (r > sr) { h = height; w = height * r; } else { w = width; h = width / r; } image(img, width/2, height/2, w, h); }
-function drawResponsiveImage(img, tw, th, yO = 0) { if (!img || img.width <= 1) return; let r = img.width/img.height, tr = tw/th, w, h; if (r > tr) { w = tw; h = tw/r; } else { h = th; w = th*r; } image(img, width/2, height/2 + yO, w, h); }
+function drawCoverImage(img) { if (!img || img.width <= 0) return; let r = img.width/img.height, sr = width/height, w, h; if (r > sr) { h = height; w = height * r; } else { w = width; h = width / r; } image(img, width/2, height/2, w, h); }
+function drawResponsiveImage(img, tw, th, yO = 0) { if (!img || img.width <= 0) return; let r = img.width/img.height, tr = tw/th, w, h; if (r > tr) { w = tw; h = tw/r; } else { h = th; w = th*r; } image(img, width/2, height/2 + yO, w, h); }
 function drawGenericButton(txt, x, y, align, callback, customCol) { 
   textAlign(align, CENTER); textSize(20); let tw = textWidth(txt); 
   let isHover = (align === CENTER) ? (mouseX > x - tw/2 && mouseX < x + tw/2 && mouseY > y - 20 && mouseY < y + 20) : (align === LEFT) ? (mouseX > x && mouseX < x + tw && mouseY > y - 20 && mouseY < y + 20) : (mouseX > x - tw && mouseX < x && mouseY > y - 20 && mouseY < y + 20) ; 
