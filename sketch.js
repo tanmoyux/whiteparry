@@ -37,7 +37,7 @@ function toggleMusic(p) {
     if (p && musicOn) {
       if (!assets.bgm.isPlaying()) {
         assets.bgm.stop(); 
-        assets.bgm.setVolume(globalVolume * 0.8);
+        assets.bgm.setVolume(1.0); // Verhindert doppelte Skalierung
         assets.bgm.loop();
       }
     } else {
@@ -106,12 +106,13 @@ function setup() {
   textFont('Rubik Mono One');
   outputVolume(globalVolume);
   
-  if(assets.s_steps) assets.s_steps.setVolume(0.4);
-  if(assets.s_e_steps) assets.s_e_steps.setVolume(0.25);
+if(assets.s_steps) assets.s_steps.setVolume(0.3);    // Vorher 0.4
+if(assets.s_e_steps) assets.s_e_steps.setVolume(0.2); // Vorher 0.25
   
   let savedHS = localStorage.getItem("whiteParryHighscore");
   highscore = (savedHS !== null) ? parseInt(savedHS) : 40; 
   resetGame();
+  changeVolume(0);
 }
 
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
@@ -322,16 +323,22 @@ function checkParrySuccess(e) {
         multikillType = floor(random(4)); 
         
         let totalGain = 0;
+        let killedAnyone = false; // Neu: Merker für den Kill-Sound
+
         for (let t of enemies) { 
             if (dist(player.x, player.y, t.x, t.y) < 750 && t.state !== 'dead') { 
                 let pVal = t.isElite ? 2 : 1;
                 t.hp--; 
                 if (t.hp <= 0) { 
                     t.state = 'dead'; t.animCounter = 0; score += pVal; totalGain += pVal;
+                    killedAnyone = true; // Neu: Mindestens ein Kill erfolgt
                     floatingTexts.push({ x: t.x, y: t.y - 100, txt: "+" + pVal, life: 70, size: 30, speed: 2 });
                 } else { t.state = 'parried'; t.animCounter = 0; } 
             } 
         } 
+        // Neu: Einmaliger Kill-Sound bei Erfolg
+        if (killedAnyone && assets.s_kill) assets.s_kill.play();
+
         floatingTexts.push({ x: player.x, y: player.y - 160, txt: "+" + totalGain, life: 120, size: 60, speed: 1.2 });
     } else { 
         e.hp--; 
@@ -571,8 +578,58 @@ function drawGenericButton(txt, x, y, align, callback, customCol) {
 }
 function drawTutorial() { background('#fafbf6'); if (assets.tutorial) drawResponsiveImage(assets.tutorial, width * 0.9, height * 0.8, -30); drawGenericButton("MENU [ESC]", width/2, height - 50, CENTER, () => gameState = "MENU"); }
 
-function changeVolume(amt) { globalVolume = constrain(globalVolume + amt, 0, 1); outputVolume(globalVolume); if(assets.bgm) assets.bgm.setVolume(globalVolume * 0.8); }
-function drawVolumeControl(x, y, w) { textAlign(LEFT, CENTER); textSize(16); fill('#c6b7be'); text("VOL", x, y); drawGenericButton("-", x + 60, y, CENTER, () => changeVolume(-0.1)); let sliderX = x + 80, knobX = map(globalVolume, 0, 1, sliderX, sliderX + w); if (mouseIsPressed && dist(mouseX, mouseY, knobX, y) < 25) isDraggingVolume = true; if (!mouseIsPressed) isDraggingVolume = false; if (isDraggingVolume) { globalVolume = constrain(map(mouseX, sliderX, sliderX + w, 0, 1), 0, 1); outputVolume(globalVolume); if(assets.bgm) assets.bgm.setVolume(globalVolume * 0.8); } stroke('#565a75'); strokeWeight(4); line(sliderX, y, sliderX + w, y); noStroke(); fill('#D00000'); ellipse(knobX, y, 18, 18); drawGenericButton("+", x + 100 + w, y, CENTER, () => changeVolume(0.1)); }
+function changeVolume(amt) {
+  globalVolume = constrain(globalVolume + amt, 0, 1);
+  outputVolume(globalVolume); 
+  
+  // Hier kannst du jeden Sound manuell pegeln (0.0 bis 1.0)
+  // Musik ist 1.0, also sind Sounds mit 0.7 leiser als die Musik
+  const sfxVol = 1; 
+  
+  if(assets.s_kill) assets.s_kill.setVolume(sfxVol);
+  if(assets.s_parry) assets.s_parry.setVolume(sfxVol);
+  if(assets.s_hit) assets.s_hit.setVolume(sfxVol);
+  if(assets.s_dash) assets.s_dash.setVolume(sfxVol);
+  if(assets.s_charge) assets.s_charge.setVolume(sfxVol);
+  if(assets.s_multikill) assets.s_multikill.setVolume(sfxVol);
+  if(assets.s_slash_miss) assets.s_slash_miss.setVolume(sfxVol);
+  if(assets.s_attack_vocal) assets.s_attack_vocal.setVolume(sfxVol);
+}
+
+function drawVolumeControl(x, y, w) {
+  textAlign(LEFT, CENTER);
+  textSize(16);
+  fill('#c6b7be');
+  text("VOL", x, y);
+  
+  drawGenericButton("-", x + 60, y, CENTER, () => changeVolume(-0.1));
+  
+  let sliderX = x + 80;
+  let knobX = map(globalVolume, 0, 1, sliderX, sliderX + w);
+  
+  // Interaktion mit dem Regler
+  if (mouseIsPressed && dist(mouseX, mouseY, knobX, y) < 25) {
+    isDraggingVolume = true;
+  }
+  if (!mouseIsPressed) {
+    isDraggingVolume = false;
+  }
+  
+  if (isDraggingVolume) {
+    globalVolume = constrain(map(mouseX, sliderX, sliderX + w, 0, 1), 0, 1);
+    outputVolume(globalVolume); // Master-Lautstärke für ALLES
+  }
+  
+  // Optik des Sliders
+  stroke('#565a75');
+  strokeWeight(4);
+  line(sliderX, y, sliderX + w, y);
+  noStroke();
+  fill('#D00000');
+  ellipse(knobX, y, 18, 18);
+  
+  drawGenericButton("+", x + 100 + w, y, CENTER, () => changeVolume(0.1));
+}
 
 function keyPressed() { 
   userStartAudio();
