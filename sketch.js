@@ -18,7 +18,18 @@ let runTimer = 0;
 let bloodStains = [];
 let floatingTexts = [];
 
-// --- AUDIO SAFETY SYSTEM ---
+// --- NEU: ASPECT RATIO LIMITER FÜR ULTRA-WIDE ---
+function getClampedCanvasSize() {
+  let w = windowWidth;
+  let h = windowHeight;
+  let maxRatio = 21 / 9; // Ultra-Wide Limit
+  if (w / h > maxRatio) {
+    w = h * maxRatio;
+  }
+  return { w, h };
+}
+
+// --- OPTIMIERUNG: AUDIO SAFETY & POOLING ---
 function safeStop(snd) {
     if (snd && snd.isPlaying()) {
         snd.stop();
@@ -26,18 +37,21 @@ function safeStop(snd) {
 }
 
 function safeLoop(snd) {
+    if (!musicOn) return;
     if (snd && !snd.isPlaying()) {
         snd.loop();
     }
 }
 
-// Verhindert das "Blechern" durch Singleton-Logik
 function toggleMusic(p) {
   if (assets.bgm) {
+    if (getAudioContext().state !== 'running') {
+        getAudioContext().resume();
+    }
     if (p && musicOn) {
       if (!assets.bgm.isPlaying()) {
         assets.bgm.stop(); 
-        assets.bgm.setVolume(1.0); // Verhindert doppelte Skalierung
+        assets.bgm.setVolume(1.0);
         assets.bgm.loop();
       }
     } else {
@@ -99,23 +113,37 @@ function preload() {
 }
 
 function setup() {
-  let canvas = createCanvas(windowWidth, windowHeight);
+  let size = getClampedCanvasSize();
+  let canvas = createCanvas(size.w, size.h);
   canvas.elt.style.imageRendering = 'pixelated';
+  
+  // Zentriert die Canvas auf dem Bildschirm bei Ultra-Wide
+  canvas.elt.style.position = 'absolute';
+  canvas.elt.style.left = '50%';
+  canvas.elt.style.top = '50%';
+  canvas.elt.style.transform = 'translate(-50%, -50%)';
+  document.body.style.backgroundColor = '#0f0f1b';
+  document.body.style.margin = '0';
+  document.body.style.overflow = 'hidden';
+
   noSmooth(); 
   imageMode(CENTER);
   textFont('Rubik Mono One');
   outputVolume(globalVolume);
   
-if(assets.s_steps) assets.s_steps.setVolume(0.3);    // Vorher 0.4
-if(assets.s_e_steps) assets.s_e_steps.setVolume(0.2); // Vorher 0.25
+  if(assets.s_steps) assets.s_steps.setVolume(0.3);
+  if(assets.s_e_steps) assets.s_e_steps.setVolume(0.2);
   
   let savedHS = localStorage.getItem("whiteParryHighscore");
-  highscore = (savedHS !== null) ? parseInt(savedHS) : 40; 
+  highscore = (savedHS !== null) ? parseInt(savedHS) : 50; 
   resetGame();
   changeVolume(0);
 }
 
-function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+function windowResized() { 
+  let size = getClampedCanvasSize();
+  resizeCanvas(size.w, size.h); 
+}
 
 function stopAllGameSounds() {
   safeStop(assets.s_steps);
@@ -194,12 +222,17 @@ function handleEnemies() {
   }
 
   let anyEnemyMovingNearby = false;
+  let pX = player.x, pY = player.y;
 
   for (let i = enemies.length - 1; i >= 0; i--) {
-    let e = enemies[i]; let d = dist(player.x, player.y, e.x, e.y); if (e.cooldown > 0) e.cooldown--;
+    let e = enemies[i]; 
+    let dx = pX - e.x;
+    let dy = pY - e.y;
+    let dSq = dx*dx + dy*dy;
     
-    // Respawn Logik: Wenn zu weit weg (aus der Sicht)
-    if (d > 2200 && e.state !== 'dead') {
+    if (e.cooldown > 0) e.cooldown--;
+    
+    if (dSq > 4840000 && e.state !== 'dead') {
         let savedElite = e.isElite;
         enemies.splice(i, 1);
         spawnEnemy(savedElite);
@@ -208,31 +241,32 @@ function handleEnemies() {
 
     if (e.state === 'walk') { 
         if (freezeTimer <= 0) e.animCounter += 0.2;
-        if (d < 800) anyEnemyMovingNearby = true;
+        if (dSq < 640000) anyEnemyMovingNearby = true;
         
-        let a = atan2(player.y - e.y, player.x - e.x); 
+        let a = atan2(dy, dx); 
         let nextX = e.x + cos(a) * e.speed;
         let nextY = e.y + sin(a) * e.speed;
 
-        // Separation (Anti-Verklumpen)
         for (let other of enemies) {
           if (other !== e && other.state !== 'dead') {
-            let d2 = dist(nextX, nextY, other.x, other.y);
-            if (d2 < 85) {
-              let pushA = atan2(e.y - other.y, e.x - other.x);
+            let odx = nextX - other.x;
+            let ody = nextY - other.y;
+            let odSq = odx*odx + ody*ody;
+            if (odSq < 7225) {
+              let pushA = atan2(ody, odx);
               nextX += cos(pushA) * 2;
               nextY += sin(pushA) * 2;
             }
           }
         }
         
-        if (d > 127) { e.x = nextX; e.y = nextY; } 
+        if (dSq > 16129) { e.x = nextX; e.y = nextY; }
         if (e.cooldown <= 0) { 
-            if (d < 190) { 
+            if (dSq < 36100) {
                 e.state = 'attack'; e.animCounter = 0; e.isDashing = false; 
-                if(assets.s_attack_vocal && d < 900) assets.s_attack_vocal.play();
+                if(assets.s_attack_vocal && dSq < 810000) assets.s_attack_vocal.play();
             } 
-            else if (e.isElite && d > 440 && d < 800 && random() < 0.02) { 
+            else if (e.isElite && dSq > 193600 && dSq < 640000 && random() < 0.02) { 
                 e.state = 'attack'; e.animCounter = 0; e.isDashing = true; 
                 if (assets.s_charge) assets.s_charge.play(); 
             } 
@@ -248,16 +282,16 @@ function handleEnemies() {
             }
         }
         else if (e.isDashing && e.animCounter < 5) { 
-            let a = atan2(player.y - e.y, player.x - e.x); 
+            let a = atan2(dy, dx); 
             e.x += cos(a) * 26; e.y += sin(a) * 26; 
-            if (d < 180) e.animCounter = 5; 
+            if (dSq < 32400) e.animCounter = 5;
         } 
         else e.animCounter += 0.35; 
       } 
       let f = floor(e.animCounter); 
-      if ((f === 5 || f === 6) && player.state === 'parry' && d < 240) checkParrySuccess(e); 
+      if ((f === 5 || f === 6) && player.state === 'parry' && dSq < 57600) checkParrySuccess(e);
       else if (f === 7 && e.animCounter < 7.4) { 
-          if (d < 280 && player.invul <= 0 && player.state !== 'parryattack') { playerHit(); e.animCounter = 7.5; } 
+          if (dSq < 78400 && player.invul <= 0 && player.state !== 'parryattack') { playerHit(); e.animCounter = 7.5; }
           else { if (assets.s_slash_miss) assets.s_slash_miss.play(); e.animCounter = 7.5; } 
       } 
       if (e.animCounter >= 8) { e.state = 'walk'; e.cooldown = 40; e.isDashing = false; } 
@@ -265,7 +299,7 @@ function handleEnemies() {
     else if (e.state === 'dead') { 
       if (freezeTimer <= 0) e.animCounter += 0.2; 
       if (e.animCounter >= 10) {
-        bloodStains.push({ x: e.x, y: e.y, img: e.isElite ? assets.eg_ko : assets.e_ko, f: random() > 0.5 ? 8 : 9, dir: player.x > e.x ? 1 : -1 });
+        bloodStains.push({ x: e.x, y: e.y, img: e.isElite ? assets.eg_ko : assets.e_ko, f: random() > 0.5 ? 8 : 9, dir: pX > e.x ? 1 : -1 });
         if (bloodStains.length > 100) bloodStains.shift(); 
         enemies.splice(i, 1); 
       }
@@ -308,7 +342,7 @@ function spawnEnemy(forcedElite = null) {
 }
 
 function checkParrySuccess(e) { 
-    let hits = enemies.filter(o => o.state === 'attack' && dist(player.x, player.y, o.x, o.y) < 240); 
+    let hits = enemies.filter(o => o.state === 'attack' && (pow(player.x - o.x, 2) + pow(player.y - o.y, 2)) < 57600); 
     player.state = 'parryattack'; 
     player.stateTimer = 45; 
     player.animCounter = 0; 
@@ -323,22 +357,22 @@ function checkParrySuccess(e) {
         multikillType = floor(random(4)); 
         
         let totalGain = 0;
-        let killedAnyone = false; // Neu: Merker für den Kill-Sound
+        let killedAnyone = false; 
 
         for (let t of enemies) { 
-            if (dist(player.x, player.y, t.x, t.y) < 750 && t.state !== 'dead') { 
+            let tdx = player.x - t.x;
+            let tdy = player.y - t.y;
+            if ((tdx*tdx + tdy*tdy) < 562500 && t.state !== 'dead') {
                 let pVal = t.isElite ? 2 : 1;
                 t.hp--; 
                 if (t.hp <= 0) { 
                     t.state = 'dead'; t.animCounter = 0; score += pVal; totalGain += pVal;
-                    killedAnyone = true; // Neu: Mindestens ein Kill erfolgt
+                    killedAnyone = true; 
                     floatingTexts.push({ x: t.x, y: t.y - 100, txt: "+" + pVal, life: 70, size: 30, speed: 2 });
                 } else { t.state = 'parried'; t.animCounter = 0; } 
             } 
         } 
-        // Neu: Einmaliger Kill-Sound bei Erfolg
         if (killedAnyone && assets.s_kill) assets.s_kill.play();
-
         floatingTexts.push({ x: player.x, y: player.y - 160, txt: "+" + totalGain, life: 120, size: 60, speed: 1.2 });
     } else { 
         e.hp--; 
@@ -501,9 +535,13 @@ function drawUI() {
 function drawMenu() { 
   background(15, 15, 27); 
   if (assets.menuBg) { push(); tint(255); drawCoverImage(assets.menuBg); pop(); } 
-  let panelW = min(400, width * 0.85); noStroke(); fill(15, 15, 27); rect(0, 0, panelW, height); 
-  if (assets.logo) image(assets.logo, panelW/2, 100, 240, 120); 
+  let panelW = min(400, width * 0.85); 
+  noStroke(); fill(15, 15, 27); rect(0, 0, panelW, height); 
   let gap = 55, startY = (height / 2) - 100, leftX = 40;
+  if (assets.logo && assets.logo.width > 0) {
+    let logoW = 280; let ratio = assets.logo.height / assets.logo.width; let logoH = logoW * ratio;
+    push(); imageMode(CORNER); image(assets.logo, leftX, 60, logoW, logoH); pop();
+  }
   drawGenericButton("[1] START GAME", leftX, startY, LEFT, () => { resetGame(); gameState = "PLAY"; toggleMusic(true); }); 
   let storyCol = storyVisited ? '#c6b7be' : color(255, 255, 255, map(sin(frameCount * 0.1), -1, 1, 100, 255));
   drawGenericButton("[2] READ STORY", leftX, startY + gap, LEFT, () => { gameState = "COMIC"; currentComicPage = 0; storyVisited = true; localStorage.setItem("storySeen", "true"); }, storyCol); 
@@ -581,11 +619,7 @@ function drawTutorial() { background('#fafbf6'); if (assets.tutorial) drawRespon
 function changeVolume(amt) {
   globalVolume = constrain(globalVolume + amt, 0, 1);
   outputVolume(globalVolume); 
-  
-  // Hier kannst du jeden Sound manuell pegeln (0.0 bis 1.0)
-  // Musik ist 1.0, also sind Sounds mit 0.7 leiser als die Musik
   const sfxVol = 1; 
-  
   if(assets.s_kill) assets.s_kill.setVolume(sfxVol);
   if(assets.s_parry) assets.s_parry.setVolume(sfxVol);
   if(assets.s_hit) assets.s_hit.setVolume(sfxVol);
@@ -597,37 +631,18 @@ function changeVolume(amt) {
 }
 
 function drawVolumeControl(x, y, w) {
-  textAlign(LEFT, CENTER);
-  textSize(16);
-  fill('#c6b7be');
-  text("VOL", x, y);
-  
+  textAlign(LEFT, CENTER); textSize(16); fill('#c6b7be'); text("VOL", x, y);
   drawGenericButton("-", x + 60, y, CENTER, () => changeVolume(-0.1));
-  
   let sliderX = x + 80;
   let knobX = map(globalVolume, 0, 1, sliderX, sliderX + w);
-  
-  // Interaktion mit dem Regler
-  if (mouseIsPressed && dist(mouseX, mouseY, knobX, y) < 25) {
-    isDraggingVolume = true;
-  }
-  if (!mouseIsPressed) {
-    isDraggingVolume = false;
-  }
-  
+  if (mouseIsPressed && dist(mouseX, mouseY, knobX, y) < 25) isDraggingVolume = true;
+  if (!mouseIsPressed) isDraggingVolume = false;
   if (isDraggingVolume) {
     globalVolume = constrain(map(mouseX, sliderX, sliderX + w, 0, 1), 0, 1);
-    outputVolume(globalVolume); // Master-Lautstärke für ALLES
+    outputVolume(globalVolume);
   }
-  
-  // Optik des Sliders
-  stroke('#565a75');
-  strokeWeight(4);
-  line(sliderX, y, sliderX + w, y);
-  noStroke();
-  fill('#D00000');
-  ellipse(knobX, y, 18, 18);
-  
+  stroke('#565a75'); strokeWeight(4); line(sliderX, y, sliderX + w, y);
+  noStroke(); fill('#D00000'); ellipse(knobX, y, 18, 18);
   drawGenericButton("+", x + 100 + w, y, CENTER, () => changeVolume(0.1));
 }
 
