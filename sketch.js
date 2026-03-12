@@ -115,9 +115,11 @@ function preload() {
 function setup() {
   let size = getClampedCanvasSize();
   let canvas = createCanvas(size.w, size.h);
-  canvas.elt.style.imageRendering = 'pixelated';
   
-  // Zentriert die Canvas auf dem Bildschirm bei Ultra-Wide
+  // OPTIMIERUNG FÜR SAFARI & PERFORMANCE
+  pixelDensity(1); 
+  
+  canvas.elt.style.imageRendering = 'pixelated';
   canvas.elt.style.position = 'absolute';
   canvas.elt.style.left = '50%';
   canvas.elt.style.top = '50%';
@@ -311,9 +313,9 @@ function handleEnemies() {
   }
 
   if (anyEnemyMovingNearby && freezeTimer <= 0 && gameState === "PLAY") {
-      safeLoop(assets.s_e_steps);
+      if (assets.s_e_steps && !assets.s_e_steps.isPlaying()) assets.s_e_steps.loop();
   } else {
-      safeStop(assets.s_e_steps);
+      if (assets.s_e_steps && assets.s_e_steps.isPlaying()) assets.s_e_steps.stop();
   }
 }
 
@@ -484,9 +486,9 @@ function handlePlayer() {
     player.isMoving = mv; 
     
     if (mv && player.state === 'walk' && freezeTimer <= 0 && gameState === "PLAY") { 
-        safeLoop(assets.s_steps); 
+        if (assets.s_steps && !assets.s_steps.isPlaying()) assets.s_steps.loop(); 
     } else { 
-        safeStop(assets.s_steps); 
+        if (assets.s_steps && assets.s_steps.isPlaying()) assets.s_steps.stop(); 
     }
 }
 
@@ -563,12 +565,28 @@ function drawGameOver() {
 }
 
 function drawFinisher() {
-  background(15, 15, 27); if (assets.bg) drawInfiniteBackground();
-  freezeTimer--; screenShake = 6; gameZoom = lerp(gameZoom, targetZoom, 0.1);
-  push(); applyScreenEffects(0);
+  background(15, 15, 27); 
+  if (assets.bg) drawInfiniteBackground();
+  
+  freezeTimer--; 
+  screenShake = 6; 
+  gameZoom = lerp(gameZoom, targetZoom, 0.1);
+
+  push(); 
+  applyScreenEffects(0);
+
+  // Zuerst das Blut zeichnen, damit es unter den Körpern liegt
+  drawBlood();
+
   let drawList = [{y: player.y, type: 'player'}];
-  for (let e of enemies) { if (e.state === 'dead') e.animCounter = 9; drawList.push({y: e.y, type: 'enemy', data: e}); }
+  for (let e of enemies) { 
+    if (e.state === 'dead') e.animCounter = 9; 
+    drawList.push({y: e.y, type: 'enemy', data: e}); 
+  }
+
+  // Y-Sortierung, damit die Tiefe stimmt
   drawList.sort((a, b) => a.y - b.y);
+
   for (let obj of drawList) {
       if (obj.type === 'player') {
           let finalImg = isNewHS ? assets.p_win : assets.p_ko; 
@@ -578,7 +596,12 @@ function drawFinisher() {
       }
   }
   pop();
-  if (freezeTimer <= 0) { stopAllGameSounds(); if (isNewHS) assets.s_win?.play(); else assets.s_lose?.play(); gameState = "GAMEOVER"; }
+
+  if (freezeTimer <= 0) { 
+    stopAllGameSounds(); 
+    if (isNewHS) assets.s_win?.play(); else assets.s_lose?.play(); 
+    gameState = "GAMEOVER"; 
+  }
 }
 
 function getPlayerImg() { 
